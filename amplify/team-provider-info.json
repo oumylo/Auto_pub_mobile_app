@@ -1,0 +1,26 @@
+{
+  "dev": {
+    "awscloudformation": {
+      "AuthRoleName": "amplify-autopubmobilapp-dev-1ce52-authRole",
+      "UnauthRoleArn": "arn:aws:iam::866435063890:role/amplify-autopubmobilapp-dev-1ce52-unauthRole",
+      "AuthRoleArn": "arn:aws:iam::866435063890:role/amplify-autopubmobilapp-dev-1ce52-authRole",
+      "Region": "eu-north-1",
+      "DeploymentBucketName": "amplify-autopubmobilapp-dev-1ce52-deployment",
+      "UnauthRoleName": "amplify-autopubmobilapp-dev-1ce52-unauthRole",
+      "StackName": "amplify-autopubmobilapp-dev-1ce52",
+      "StackId": "arn:aws:cloudformation:eu-north-1:866435063890:stack/amplify-autopubmobilapp-dev-1ce52/b520a960-9ef8-11f0-9700-06eb437109ad",
+      "AmplifyAppId": "d1mf97axgnr57r"
+    },
+    "categories": {
+      "auth": {
+        "autopubmobilapp5e05772c": {}
+      },
+      "storage": {
+        "userfiles": {}
+      },
+      "api": {
+        "autopubmobilapp": {}
+      }
+    }
+  }
+}

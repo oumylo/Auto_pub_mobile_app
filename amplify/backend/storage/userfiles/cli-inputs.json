@@ -1,0 +1,13 @@
+{
+  "resourceName": "userfiles",
+  "policyUUID": "7ec6b02f",
+  "bucketName": "auto-pub-user-mobil-app--files",
+  "storageAccess": "auth",
+  "guestAccess": [],
+  "authAccess": [
+    "CREATE_AND_UPDATE",
+    "READ",
+    "DELETE"
+  ],
+  "groupAccess": {}
+}

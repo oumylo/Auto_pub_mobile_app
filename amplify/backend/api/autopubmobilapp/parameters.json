@@ -1,0 +1,11 @@
+{
+  "AppSyncApiName": "autopubmobilapp",
+  "DynamoDBBillingMode": "PAY_PER_REQUEST",
+  "DynamoDBEnableServerSideEncryption": false,
+  "AuthCognitoUserPoolId": {
+    "Fn::GetAtt": [
+      "authautopubmobilapp5e05772c",
+      "Outputs.UserPoolId"
+    ]
+  }
+}

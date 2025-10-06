@@ -1,0 +1,40 @@
+type Conducteur @model
+  @auth(rules: [
+    { allow: groups, groups: ["Admin"], operations: [create, read, update, delete] },
+    { allow: owner, operations: [read, update] },
+    { allow: public, operations: [read, create] }
+  ]) {
+  id: ID!
+  owner: String
+  nom: String!
+  email: AWSEmail!
+  telephone: String!
+  typeSupport: String!
+  typeVoiture: String!
+  zones: [String!]!
+  heuresConduite: String!
+  ciRectoUrl: String!
+  ciVersoUrl: String!
+  cgRectoUrl: String!
+  cgVersoUrl: String!
+}
+
+
+# Schéma GraphQL pour les annonceurs
+
+type Annonceur @model
+  @auth(rules: [
+    { allow: owner, operations: [read, update, delete] },  # le créateur peut lire/modifier/supprimer
+    { allow: public, operations: [create] }               # tout le monde peut créer
+  ]) {
+  id: ID!
+  owner: String
+  nom: String!
+  email: AWSEmail!
+  telephone: String!
+  domaineActivite: String!
+  adresse: String!
+  logoUrl: String!
+  createdAt: AWSDateTime
+  updatedAt: AWSDateTime
+  }

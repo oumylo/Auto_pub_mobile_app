@@ -4,7 +4,6 @@ import 'package:image_picker/image_picker.dart';
 import 'dart:io';
 import 'package:amplify_flutter/amplify_flutter.dart';
 import 'package:amplify_auth_cognito/amplify_auth_cognito.dart';
-import 'package:amplify_storage_s3/amplify_storage_s3.dart';
 
 class SignupAnnonceurPage extends StatefulWidget {
   const SignupAnnonceurPage({super.key});
@@ -43,93 +42,15 @@ class _SignupAnnonceurPageState extends State<SignupAnnonceurPage> {
       final session = await Amplify.Auth.fetchAuthSession();
       if (session.isSignedIn) {
         await Amplify.Auth.signOut();
-        print('Utilisateur déconnecté au démarrage');
       }
-    } catch (e) {
-      print('Erreur lors de la vérification de session : $e');
-    }
-  }
-
-  @override
-  void dispose() {
-    _nomController.dispose();
-    _emailController.dispose();
-    _phoneController.dispose();
-    _passwordController.dispose();
-    _confirmPasswordController.dispose();
-    _codeController.dispose();
-    _domaineActiviteController.dispose();
-    _adresseController.dispose();
-    super.dispose();
+    } catch (_) {}
   }
 
   Future<void> pickLogo() async {
     final pickedFile = await ImagePicker().pickImage(
       source: ImageSource.gallery,
     );
-    if (pickedFile != null) {
-      setState(() => _logo = File(pickedFile.path));
-    }
-  }
-
-  Future<String?> uploadLogo(File file, String userId) async {
-    try {
-      final timestamp = DateTime.now().millisecondsSinceEpoch;
-      final key = 'public/logos/$userId-$timestamp.png';
-
-      final result =
-          await Amplify.Storage.uploadFile(
-            localFile: AWSFile.fromPath(file.path),
-            path: StoragePath.fromString(key),
-            options: StorageUploadFileOptions(
-              metadata: {
-                'userId': userId,
-                'type': 'logo',
-                'uploadedAt': timestamp.toString(),
-              },
-            ),
-          ).result;
-
-      print('✅ Logo uploadé : ${result.uploadedItem.path}');
-      return result.uploadedItem.path;
-    } catch (e) {
-      print('❌ Erreur upload logo : $e');
-      return null;
-    }
-  }
-
-  Future<bool> saveAnnonceurToDynamo(String userId, String logoKey) async {
-    try {
-      final mutation = '''
-      mutation CreateAnnonceur {
-        createAnnonceur(input: {
-          id: "$userId",
-          nom: "${_nomController.text}",
-          email: "${_emailController.text}",
-          telephone: "${_phoneController.text}",
-          domaineActivite: "${_domaineActiviteController.text}",
-          adresse: "${_adresseController.text}",
-          logoUrl: "$logoKey"
-        }) {
-          id
-        }
-      }
-      ''';
-
-      final request = GraphQLRequest(document: mutation);
-      final response = await Amplify.API.mutate(request: request).response;
-
-      if (response.errors.isEmpty) {
-        print('Annonceur créé dans DynamoDB');
-        return true;
-      } else {
-        print('Erreur création annonceur DynamoDB : ${response.errors}');
-        return false;
-      }
-    } catch (e) {
-      print('Exception création annonceur DynamoDB : $e');
-      return false;
-    }
+    if (pickedFile != null) setState(() => _logo = File(pickedFile.path));
   }
 
   Future<void> signup() async {
@@ -143,8 +64,6 @@ class _SignupAnnonceurPageState extends State<SignupAnnonceurPage> {
     setState(() => _isLoading = true);
 
     try {
-      await Amplify.Auth.signOut().catchError((_) {});
-
       await Amplify.Auth.signUp(
         username: _emailController.text.trim(),
         password: _passwordController.text,
@@ -157,10 +76,10 @@ class _SignupAnnonceurPageState extends State<SignupAnnonceurPage> {
           },
         ),
       );
-
       setState(() {
         _isSignedUp = true;
         _isLoading = false;
+        _currentStep = 2;
       });
 
       ScaffoldMessenger.of(context).showSnackBar(
@@ -168,369 +87,468 @@ class _SignupAnnonceurPageState extends State<SignupAnnonceurPage> {
           content: Text(
             'Inscription réussie ! Vérifiez votre email pour le code.',
           ),
-          duration: Duration(seconds: 5),
+          backgroundColor: Colors.green,
         ),
       );
     } catch (e) {
       setState(() => _isLoading = false);
-      print('Erreur signup : $e');
       ScaffoldMessenger.of(
         context,
-      ).showSnackBar(SnackBar(content: Text('Erreur d\'inscription: $e')));
+      ).showSnackBar(SnackBar(content: Text('Erreur d\'inscription : $e')));
     }
   }
 
-  Future<void> confirmSignupAndUploadLogo() async {
-    if (_codeController.text.trim().isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Veuillez entrer le code de confirmation'),
-        ),
-      );
-      return;
-    }
+  Future<void> confirmSignup() async {
+    if (_codeController.text.isEmpty) return;
 
     setState(() => _isLoading = true);
 
     try {
-      final confirmRes = await Amplify.Auth.confirmSignUp(
+      final res = await Amplify.Auth.confirmSignUp(
         username: _emailController.text.trim(),
         confirmationCode: _codeController.text.trim(),
       );
 
-      if (confirmRes.isSignUpComplete) {
-        final signInRes = await Amplify.Auth.signIn(
-          username: _emailController.text.trim(),
-          password: _passwordController.text,
+      if (res.isSignUpComplete) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Compte confirmé avec succès !'),
+            backgroundColor: Colors.green,
+          ),
         );
 
-        if (signInRes.isSignedIn && _logo != null) {
-          final user = await Amplify.Auth.getCurrentUser();
-          final logoKey = await uploadLogo(_logo!, user.userId);
-
-          if (logoKey != null) {
-            await saveAnnonceurToDynamo(user.userId, logoKey);
-
-            ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(
-                content: Text(
-                  'Compte confirmé, logo uploadé et annonceur enregistré avec succès !',
+        Navigator.pushReplacement(
+          context,
+          MaterialPageRoute(
+            builder:
+                (context) => HomePage(
+                  userName: _nomController.text,
+                  userRole: 'annonceur',
                 ),
-                backgroundColor: Colors.green,
-                duration: Duration(seconds: 3),
-              ),
-            );
-
-            await Future.delayed(const Duration(seconds: 1));
-
-            if (mounted) {
-              Navigator.pushAndRemoveUntil(
-                context,
-                MaterialPageRoute(
-                  builder: (context) => HomePage(userName: '', userRole: ''),
-                ),
-                (route) => false,
-              );
-            }
-          } else {
-            ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(
-                content: Text(
-                  'Compte confirmé mais erreur lors de l\'upload du logo',
-                ),
-                backgroundColor: Colors.orange,
-              ),
-            );
-          }
-        }
+          ),
+        );
       }
     } catch (e) {
-      print('Erreur confirmation : $e');
       ScaffoldMessenger.of(
         context,
-      ).showSnackBar(SnackBar(content: Text('Erreur de confirmation: $e')));
+      ).showSnackBar(SnackBar(content: Text('Erreur : $e')));
     }
 
     setState(() => _isLoading = false);
   }
 
-  List<Widget> getFormStep() {
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: Colors.white,
+      appBar: AppBar(
+        backgroundColor: Colors.white,
+        elevation: 0,
+        leading:
+            _currentStep > 0
+                ? IconButton(
+                  icon: const Icon(Icons.arrow_back, color: Colors.black),
+                  onPressed: () {
+                    if (_currentStep == 2) {
+                      setState(() => _currentStep = 1);
+                    } else if (_currentStep == 1) {
+                      setState(() => _currentStep = 0);
+                    } else {
+                      Navigator.pop(context);
+                    }
+                  },
+                )
+                : IconButton(
+                  icon: const Icon(Icons.arrow_back, color: Colors.black),
+                  onPressed: () => Navigator.pop(context),
+                ),
+      ),
+      body: SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 24.0),
+          child: Form(
+            key: _formKey,
+            child: SingleChildScrollView(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: _getFormStep(),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  List<Widget> _getFormStep() {
     switch (_currentStep) {
       case 0:
         return [
-          const Icon(Icons.business_outlined, size: 80, color: Colors.blue),
-          const SizedBox(height: 16),
+          const SizedBox(height: 20),
           const Text(
-            'Créer un compte annonceur',
+            'Créer un Compte Entreprise',
             style: TextStyle(
-              fontSize: 26,
+              fontSize: 24,
               fontWeight: FontWeight.bold,
-              color: Colors.blueAccent,
+              color: Colors.black,
             ),
           ),
-          const SizedBox(height: 30),
-          TextFormField(
-            controller: _nomController,
-            decoration: const InputDecoration(
-              labelText: 'Nom de l\'entreprise',
-              prefixIcon: Icon(Icons.business),
-              border: OutlineInputBorder(),
-            ),
-            validator:
-                (val) => val == null || val.isEmpty ? 'Champ requis' : null,
+          const SizedBox(height: 8),
+          const Text(
+            'Rejoignez votre plateforme publicitaire',
+            style: TextStyle(fontSize: 14, color: Colors.grey),
           ),
-          const SizedBox(height: 15),
-          TextFormField(
-            controller: _emailController,
-            decoration: const InputDecoration(
-              labelText: 'Email',
-              prefixIcon: Icon(Icons.email_outlined),
-              border: OutlineInputBorder(),
+          const SizedBox(height: 40),
+          const Text(
+            'Nom de l\'Entreprise',
+            style: TextStyle(
+              fontSize: 14,
+              fontWeight: FontWeight.w600,
+              color: Colors.black,
             ),
-            keyboardType: TextInputType.emailAddress,
-            validator:
-                (val) => val == null || val.isEmpty ? 'Champ requis' : null,
           ),
-          const SizedBox(height: 15),
-          TextFormField(
-            controller: _phoneController,
-            decoration: const InputDecoration(
-              labelText: 'Numéro de téléphone',
-              prefixIcon: Icon(Icons.phone),
-              border: OutlineInputBorder(),
-              hintText: '+221XXXXXXXXX',
+          const SizedBox(height: 8),
+          _buildModernTextField('ABC Technologie', _nomController),
+          const SizedBox(height: 20),
+          const Text(
+            'Email Professionnel',
+            style: TextStyle(
+              fontSize: 14,
+              fontWeight: FontWeight.w600,
+              color: Colors.black,
             ),
-            keyboardType: TextInputType.phone,
-            validator:
-                (val) => val == null || val.isEmpty ? 'Champ requis' : null,
           ),
-          const SizedBox(height: 15),
-          TextFormField(
-            controller: _passwordController,
-            decoration: InputDecoration(
-              labelText: 'Mot de passe',
-              prefixIcon: const Icon(Icons.lock_outline),
-              border: const OutlineInputBorder(),
-              suffixIcon: IconButton(
-                icon: Icon(
-                  _obscurePassword ? Icons.visibility_off : Icons.visibility,
+          const SizedBox(height: 8),
+          _buildModernTextField('contact@entreprise.sn', _emailController),
+          const SizedBox(height: 20),
+          const Text(
+            'Contact',
+            style: TextStyle(
+              fontSize: 14,
+              fontWeight: FontWeight.w600,
+              color: Colors.black,
+            ),
+          ),
+          const SizedBox(height: 8),
+          _buildModernTextField('+221 XX XXX XX XX', _phoneController),
+          const SizedBox(height: 20),
+          const Text(
+            'Mot de Passe',
+            style: TextStyle(
+              fontSize: 14,
+              fontWeight: FontWeight.w600,
+              color: Colors.black,
+            ),
+          ),
+          const SizedBox(height: 8),
+          _buildPasswordField('********', _passwordController, true),
+          const SizedBox(height: 40),
+          const Text(
+            'Confirmer le Mot de Passe',
+            style: TextStyle(
+              fontSize: 14,
+              fontWeight: FontWeight.w600,
+              color: Colors.black,
+            ),
+          ),
+          const SizedBox(height: 8),
+          _buildPasswordField('********', _confirmPasswordController, false),
+          const SizedBox(height: 40),
+          Row(
+            children: [
+              Expanded(
+                child: OutlinedButton(
+                  onPressed: () => Navigator.pop(context),
+                  style: OutlinedButton.styleFrom(
+                    padding: const EdgeInsets.symmetric(vertical: 16),
+                    side: const BorderSide(
+                      color: Color.fromARGB(255, 86, 85, 85),
+                    ),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                  ),
+
+                  child: const Text(
+                    '← Précédent',
+                    style: TextStyle(
+                      color: Colors.black,
+                      fontSize: 16,
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
                 ),
-                onPressed:
-                    () => setState(() {
-                      _obscurePassword = !_obscurePassword;
-                    }),
               ),
-            ),
-            obscureText: _obscurePassword,
-            validator:
-                (val) => val == null || val.isEmpty ? 'Champ requis' : null,
-          ),
-          const SizedBox(height: 15),
-          TextFormField(
-            controller: _confirmPasswordController,
-            decoration: InputDecoration(
-              labelText: 'Confirmer mot de passe',
-              prefixIcon: const Icon(Icons.lock),
-              border: const OutlineInputBorder(),
-              suffixIcon: IconButton(
-                icon: Icon(
-                  _obscureConfirmPassword
-                      ? Icons.visibility_off
-                      : Icons.visibility,
+              const SizedBox(width: 12),
+              Expanded(
+                child: ElevatedButton(
+                  onPressed:
+                      _isLoading
+                          ? null
+                          : () {
+                            if (_formKey.currentState!.validate()) {
+                              setState(() => _currentStep = 1);
+                            }
+                          },
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: const Color(0xFFFDB60A),
+                    padding: const EdgeInsets.symmetric(vertical: 16),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    elevation: 0,
+                  ),
+                  child:
+                      _isLoading
+                          ? const SizedBox(
+                            height: 20,
+                            width: 20,
+                            child: CircularProgressIndicator(
+                              color: Colors.white,
+                              strokeWidth: 2,
+                            ),
+                          )
+                          : const Text(
+                            'Suivant →',
+                            style: TextStyle(
+                              color: Colors.white,
+                              fontSize: 16,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
                 ),
-                onPressed:
-                    () => setState(() {
-                      _obscureConfirmPassword = !_obscureConfirmPassword;
-                    }),
               ),
-            ),
-            obscureText: _obscureConfirmPassword,
-            validator:
-                (val) => val == null || val.isEmpty ? 'Champ requis' : null,
+            ],
           ),
-          const SizedBox(height: 25),
-          ElevatedButton(
-            style: ElevatedButton.styleFrom(
-              backgroundColor: Colors.blue,
-              minimumSize: const Size(double.infinity, 50),
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(12),
-              ),
-            ),
-            onPressed: () {
-              if (_formKey.currentState!.validate()) {
-                setState(() => _currentStep = 1);
-              }
-            },
-            child: const Text(
-              'Suivant',
-              style: TextStyle(fontSize: 18, color: Colors.white),
-            ),
-          ),
+          const SizedBox(height: 20),
         ];
 
       case 1:
         return [
-          const Icon(Icons.store_outlined, size: 80, color: Colors.blue),
-          const SizedBox(height: 16),
+          const SizedBox(height: 20),
           const Text(
-            'Détails de l\'entreprise',
+            'Créer un Compte Entreprise',
             style: TextStyle(
-              fontSize: 26,
+              fontSize: 24,
               fontWeight: FontWeight.bold,
-              color: Colors.blueAccent,
+              color: Colors.black,
             ),
           ),
-          const SizedBox(height: 30),
-          TextFormField(
-            controller: _domaineActiviteController,
-            decoration: const InputDecoration(
-              labelText: 'Domaine d\'activité',
-              prefixIcon: Icon(Icons.work_outline),
-              border: OutlineInputBorder(),
+          const SizedBox(height: 8),
+          const Text(
+            'Naviguez votre plateforme publicitaire',
+            style: TextStyle(
+              fontSize: 14,
+              color: Color.fromARGB(255, 86, 85, 85),
             ),
-            maxLines: 2,
-            validator:
-                (val) => val == null || val.isEmpty ? 'Champ requis' : null,
           ),
-          const SizedBox(height: 15),
-          TextFormField(
-            controller: _adresseController,
-            decoration: const InputDecoration(
-              labelText: 'Adresse',
-              prefixIcon: Icon(Icons.location_on_outlined),
-              border: OutlineInputBorder(),
+          const SizedBox(height: 40),
+          const Text(
+            'Domaine d\'activité',
+            style: TextStyle(
+              fontSize: 14,
+              fontWeight: FontWeight.w600,
+              color: Colors.black,
             ),
-            validator:
-                (val) => val == null || val.isEmpty ? 'Champ requis' : null,
+          ),
+          const SizedBox(height: 8),
+          _buildModernTextField(
+            'Ressources renouvelables',
+            _domaineActiviteController,
           ),
           const SizedBox(height: 20),
           const Text(
-            'Logo de l\'entreprise',
-            style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
-          ),
-          const SizedBox(height: 10),
-          OutlinedButton.icon(
-            onPressed: pickLogo,
-            icon: const Icon(Icons.image),
-            label: Text(_logo == null ? 'Choisir un logo' : 'Changer le logo'),
-            style: OutlinedButton.styleFrom(
-              minimumSize: const Size(double.infinity, 50),
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(12),
-              ),
+            'Adresse',
+            style: TextStyle(
+              fontSize: 14,
+              fontWeight: FontWeight.w600,
+              color: Colors.black,
             ),
           ),
-          if (_logo != null)
-            Padding(
-              padding: const EdgeInsets.symmetric(vertical: 15),
-              child: ClipRRect(
+          const SizedBox(height: 8),
+          _buildModernTextField('Mermoz, rue 124', _adresseController),
+          const SizedBox(height: 20),
+          const Text(
+            'Logo de l\'entreprise',
+            style: TextStyle(
+              fontSize: 14,
+              fontWeight: FontWeight.w600,
+              color: Colors.black,
+            ),
+          ),
+          const SizedBox(height: 8),
+          GestureDetector(
+            onTap: pickLogo,
+            child: Container(
+              width: double.infinity,
+              height: 160,
+              decoration: BoxDecoration(
+                color: const Color(0xFFF5F5F5),
                 borderRadius: BorderRadius.circular(12),
-                child: Image.file(
-                  _logo!,
-                  width: 150,
-                  height: 150,
-                  fit: BoxFit.cover,
+                border: Border.all(color: Color.fromARGB(255, 86, 85, 85)),
+              ),
+              child:
+                  _logo == null
+                      ? Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Container(
+                            padding: const EdgeInsets.all(16),
+                            decoration: BoxDecoration(
+                              color: Colors.white,
+                              borderRadius: BorderRadius.circular(50),
+                            ),
+                            child: const Icon(
+                              Icons.cloud_upload_outlined,
+                              size: 32,
+                              color: Color.fromARGB(255, 86, 85, 85),
+                            ),
+                          ),
+                          const SizedBox(height: 12),
+                          const Text(
+                            'Choisir pour télécharger',
+                            style: TextStyle(
+                              color: Color.fromARGB(255, 86, 85, 85),
+                              fontSize: 14,
+                            ),
+                          ),
+                          const SizedBox(height: 4),
+                          const Text(
+                            'JPG, PNG ou PDF (MAX 5MB)',
+                            style: TextStyle(
+                              color: Color.fromARGB(255, 86, 85, 85),
+                              fontSize: 12,
+                            ),
+                          ),
+                        ],
+                      )
+                      : ClipRRect(
+                        borderRadius: BorderRadius.circular(15),
+                        child: Image.file(_logo!, fit: BoxFit.cover),
+                      ),
+            ),
+          ),
+          const SizedBox(height: 40),
+          SizedBox(
+            width: double.infinity,
+            child: ElevatedButton(
+              onPressed: _isLoading ? null : signup,
+              style: ElevatedButton.styleFrom(
+                backgroundColor: const Color(0xFFFDB60A),
+                padding: const EdgeInsets.symmetric(vertical: 16),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(15),
+                ),
+                elevation: 0,
+              ),
+              child:
+                  _isLoading
+                      ? const SizedBox(
+                        height: 20,
+                        width: 20,
+                        child: CircularProgressIndicator(
+                          color: Colors.white,
+                          strokeWidth: 2,
+                        ),
+                      )
+                      : const Text(
+                        'Créer mon Compte',
+                        style: TextStyle(
+                          color: Colors.white,
+                          fontSize: 16,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+            ),
+          ),
+          const SizedBox(height: 16),
+          Center(
+            child: TextButton(
+              onPressed: () {},
+              child: RichText(
+                text: const TextSpan(
+                  text: 'Déjà un compte ? ',
+                  style: TextStyle(color: Colors.black, fontSize: 14),
+                  children: [
+                    TextSpan(
+                      text: 'Se connecter',
+                      style: TextStyle(
+                        color: Color(0xFFFDB60A),
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ],
                 ),
               ),
             ),
-          const SizedBox(height: 25),
-          ElevatedButton(
-            style: ElevatedButton.styleFrom(
-              backgroundColor: Colors.blue,
-              minimumSize: const Size(double.infinity, 50),
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(12),
-              ),
-            ),
-            onPressed: () {
-              if (_domaineActiviteController.text.isNotEmpty &&
-                  _adresseController.text.isNotEmpty &&
-                  _logo != null) {
-                signup();
-                setState(() => _currentStep = 2);
-              } else {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(
-                    content: Text(
-                      'Veuillez remplir tous les champs et choisir un logo',
-                    ),
-                  ),
-                );
-              }
-            },
-            child: const Text(
-              'Suivant',
-              style: TextStyle(fontSize: 18, color: Colors.white),
-            ),
           ),
-          const SizedBox(height: 10),
-          TextButton(
-            onPressed: () => setState(() => _currentStep = 0),
-            child: const Text(
-              'Retour',
-              style: TextStyle(color: Colors.blueAccent),
-            ),
-          ),
+          const SizedBox(height: 20),
         ];
 
       case 2:
         return [
-          const Icon(
-            Icons.verified_user_outlined,
-            size: 80,
-            color: Colors.blue,
-          ),
-          const SizedBox(height: 16),
+          const SizedBox(height: 20),
           const Text(
             'Confirmation du compte',
             style: TextStyle(
-              fontSize: 26,
+              fontSize: 24,
               fontWeight: FontWeight.bold,
-              color: Colors.blueAccent,
+              color: Colors.black,
             ),
           ),
-          const SizedBox(height: 10),
+          const SizedBox(height: 8),
           const Text(
             'Un code de confirmation a été envoyé à votre email.',
-            textAlign: TextAlign.center,
-          ),
-          const SizedBox(height: 30),
-          TextFormField(
-            controller: _codeController,
-            decoration: const InputDecoration(
-              labelText: 'Code de confirmation',
-              prefixIcon: Icon(Icons.pin_outlined),
-              border: OutlineInputBorder(),
+            style: TextStyle(
+              fontSize: 14,
+              color: Color.fromARGB(255, 86, 85, 85),
             ),
-            keyboardType: TextInputType.number,
           ),
-          const SizedBox(height: 25),
-          ElevatedButton(
-            style: ElevatedButton.styleFrom(
-              backgroundColor: Colors.blue,
-              minimumSize: const Size(double.infinity, 50),
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(12),
+          const SizedBox(height: 40),
+          const Text(
+            'Code de confirmation',
+            style: TextStyle(
+              fontSize: 14,
+              fontWeight: FontWeight.w600,
+              color: Colors.black,
+            ),
+          ),
+          const SizedBox(height: 8),
+          _buildModernTextField('Entrez le code', _codeController),
+          const SizedBox(height: 40),
+          SizedBox(
+            width: double.infinity,
+            child: ElevatedButton(
+              onPressed: _isLoading ? null : confirmSignup,
+              style: ElevatedButton.styleFrom(
+                backgroundColor: const Color(0xFFFDB60A),
+                padding: const EdgeInsets.symmetric(vertical: 16),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                elevation: 0,
               ),
+              child:
+                  _isLoading
+                      ? const SizedBox(
+                        height: 20,
+                        width: 20,
+                        child: CircularProgressIndicator(
+                          color: Colors.white,
+                          strokeWidth: 2,
+                        ),
+                      )
+                      : const Text(
+                        'Confirmer',
+                        style: TextStyle(
+                          color: Colors.white,
+                          fontSize: 16,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
             ),
-            onPressed: _isLoading ? null : confirmSignupAndUploadLogo,
-            child:
-                _isLoading
-                    ? const CircularProgressIndicator(color: Colors.white)
-                    : const Text(
-                      'Confirmer et finaliser l\'inscription',
-                      style: TextStyle(fontSize: 18, color: Colors.white),
-                    ),
           ),
-          const SizedBox(height: 10),
-          TextButton(
-            onPressed: () => setState(() => _currentStep = 1),
-            child: const Text(
-              'Retour',
-              style: TextStyle(color: Colors.blueAccent),
-            ),
-          ),
+          const SizedBox(height: 20),
         ];
 
       default:
@@ -538,39 +556,129 @@ class _SignupAnnonceurPageState extends State<SignupAnnonceurPage> {
     }
   }
 
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      body: Container(
-        decoration: const BoxDecoration(
-          gradient: LinearGradient(
-            colors: [Color(0xFF1565C0), Color(0xFF42A5F5)],
-            begin: Alignment.topCenter,
-            end: Alignment.bottomCenter,
-          ),
+  Widget _buildModernTextField(String hint, TextEditingController controller) {
+    return TextFormField(
+      controller: controller,
+      keyboardType:
+          controller == _phoneController
+              ? TextInputType.phone
+              : (controller == _emailController
+                  ? TextInputType.emailAddress
+                  : TextInputType.text),
+      decoration: InputDecoration(
+        hintText: hint,
+        hintStyle: const TextStyle(
+          color: Color.fromARGB(255, 86, 85, 85),
+          fontSize: 14,
         ),
-        child: Center(
-          child: Card(
-            elevation: 12,
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(25),
-            ),
-            margin: const EdgeInsets.symmetric(horizontal: 20, vertical: 40),
-            child: Padding(
-              padding: const EdgeInsets.all(24),
-              child: Form(
-                key: _formKey,
-                child: SingleChildScrollView(
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    children: getFormStep(),
-                  ),
-                ),
-              ),
-            ),
-          ),
+        filled: true,
+        fillColor: const Color(0xFFF5F5F5),
+        border: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(15),
+          borderSide: BorderSide.none,
+        ),
+        enabledBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(15),
+          borderSide: BorderSide.none,
+        ),
+        focusedBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(15),
+          borderSide: const BorderSide(color: Color(0xFFFDB60A), width: 1),
+        ),
+        contentPadding: const EdgeInsets.symmetric(
+          horizontal: 16,
+          vertical: 16,
         ),
       ),
+      validator: (val) {
+        if (val == null || val.isEmpty) {
+          return 'Champ requis';
+        }
+
+        // Validation email
+        if (controller == _emailController) {
+          final emailRegex = RegExp(r'^[\w-\.]+@([\w-]+\.)+[\w-]{2,4}$');
+          if (!emailRegex.hasMatch(val.trim())) {
+            return 'Entrez une adresse email valide';
+          }
+        }
+        if (controller == _phoneController) {
+          final phoneRegex = RegExp(r'^[0-9+ ]+$');
+          if (!phoneRegex.hasMatch(val.trim())) {
+            return 'Le contact ne doit contenir que des chiffres';
+          }
+        }
+
+        return null;
+      },
+    );
+  }
+
+  Widget _buildPasswordField(
+    String hint,
+    TextEditingController controller,
+    bool first,
+  ) {
+    final visible = first ? _obscurePassword : _obscureConfirmPassword;
+    return TextFormField(
+      controller: controller,
+      obscureText: visible,
+      decoration: InputDecoration(
+        hintText: hint,
+        hintStyle: const TextStyle(
+          color: Color.fromARGB(255, 86, 85, 85),
+          fontSize: 14,
+        ),
+        filled: true,
+        fillColor: const Color(0xFFF5F5F5),
+        border: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(10),
+          borderSide: BorderSide.none,
+        ),
+        enabledBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(10),
+          borderSide: BorderSide.none,
+        ),
+        focusedBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(10),
+          borderSide: const BorderSide(color: Color(0xFFFDB60A), width: 1),
+        ),
+        contentPadding: const EdgeInsets.symmetric(
+          horizontal: 16,
+          vertical: 16,
+        ),
+        suffixIcon: IconButton(
+          icon: Icon(
+            visible ? Icons.visibility_off : Icons.visibility,
+            color: Color.fromARGB(255, 86, 85, 85),
+          ),
+          onPressed:
+              () => setState(() {
+                if (first) {
+                  _obscurePassword = !_obscurePassword;
+                } else {
+                  _obscureConfirmPassword = !_obscureConfirmPassword;
+                }
+              }),
+        ),
+      ),
+      validator: (val) {
+        if (val == null || val.isEmpty) {
+          return 'Champ requis';
+        }
+
+        // Vérifie que les mots de passe correspondent
+        if (!first && val != _passwordController.text) {
+          return 'Les mots de passe ne correspondent pas';
+        }
+
+        // Optionnel : longueur minimale du mot de passe
+        if (first && val.length < 6) {
+          return 'Le mot de passe doit contenir au moins 6 caractères';
+        }
+
+        return null;
+      },
     );
   }
 }

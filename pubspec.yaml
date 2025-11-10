@@ -40,6 +40,9 @@ dependencies:
   amplify_datastore: ^2.6.3
   image_picker: ^1.2.0
   amplify_api: ^2.6.3
+  google_fonts: ^6.3.2
+  provider: ^6.1.5+1
+  flutter_local_notifications: ^17.2.1
 
 dev_dependencies:
   flutter_test:
@@ -66,6 +69,13 @@ flutter:
   # To add assets to your application, add an assets section, like this:
   assets:
     - assets/images/page1.png
+    - assets/images/APS-logo5.png
+    - assets/images/logo_white.png
+    - assets/images/onb_tracking.png
+    - assets/images/onb_payments.png
+    - assets/images/onb_design.png
+    - assets/images/fond_chauffeur.png
+
   #   - images/a_dot_ham.jpeg
 
   # An image asset can refer to one or more resolution-specific "variants", see

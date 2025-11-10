@@ -17,15 +17,15 @@ type Conducteur @model
   ciVersoUrl: String!
   cgRectoUrl: String!
   cgVersoUrl: String!
+  campagnesAssignees: [ID!]
+  createdAt: AWSDateTime
+  updatedAt: AWSDateTime
 }
-
-
-# Schéma GraphQL pour les annonceurs
 
 type Annonceur @model
   @auth(rules: [
-    { allow: owner, operations: [read, update, delete] },  # le créateur peut lire/modifier/supprimer
-    { allow: public, operations: [create] }               # tout le monde peut créer
+    { allow: owner, operations: [create, read, update, delete] },  
+    { allow: public, operations: [create] }              
   ]) {
   id: ID!
   owner: String
@@ -37,4 +37,38 @@ type Annonceur @model
   logoUrl: String!
   createdAt: AWSDateTime
   updatedAt: AWSDateTime
-  }
+}
+
+type Campagne @model
+  @auth(rules: [
+    { allow: owner, ownerField: "owner", operations: [create, read, update, delete] },
+    { allow: groups, groups: ["Admin"], operations: [read, update, delete] }
+  ]) {
+  id: ID!
+  titre: String!
+  budget: Float!
+  zonesCibles: [String!]!
+  description: String
+  visuelUrl: String
+  propositionChoisie: String
+  statut: String @default(value: "EN_ATTENTE")
+  owner: String!
+  createdAt: AWSDateTime
+  updatedAt: AWSDateTime
+}
+
+type Notification @model
+  @auth(rules: [
+    { allow: owner, ownerField: "owner", operations: [create, read, update, delete] },
+    { allow: groups, groups: ["Admin"], operations: [create, read, delete] }
+  ]) {
+  id: ID!
+  titre: String!
+  message: String!
+  lue: Boolean
+  date: AWSDateTime
+  owner: String!
+  campagneID: ID
+  createdAt: AWSDateTime
+  updatedAt: AWSDateTime
+}

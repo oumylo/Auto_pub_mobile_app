@@ -4,7 +4,7 @@ import 'package:image_picker/image_picker.dart';
 import 'dart:io';
 import 'package:amplify_flutter/amplify_flutter.dart';
 import 'package:amplify_auth_cognito/amplify_auth_cognito.dart';
-import 'package:amplify_storage_s3/amplify_storage_s3.dart';
+
 
 class SignupConducteurPage extends StatefulWidget {
   const SignupConducteurPage({super.key});
@@ -36,7 +36,7 @@ class _SignupConducteurPageState extends State<SignupConducteurPage> {
   bool _isLoading = false;
   bool _obscurePassword = true;
   bool _obscureConfirmPassword = true;
-  int _currentPage = 0;
+  int _currentStep = 0;
 
   final List<String> _typesSupport = ['Ecran', 'Vinyle', 'Ecran + Vinyle'];
   final List<String> _typesVoiture = ['Taxi', 'Bus', 'Voiture particulier'];
@@ -232,30 +232,6 @@ class _SignupConducteurPageState extends State<SignupConducteurPage> {
   Future<void> signup() async {
     if (!_formKey.currentState!.validate()) return;
 
-    if (_ciRecto == null ||
-        _ciVerso == null ||
-        _cgRecto == null ||
-        _cgVerso == null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Veuillez sélectionner tous les documents requis'),
-        ),
-      );
-      return;
-    }
-
-    if (_typeSupport == null ||
-        _typeVoiture == null ||
-        _zonesFrequentees.isEmpty ||
-        _heuresConduite == null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Veuillez remplir tous les champs obligatoires'),
-        ),
-      );
-      return;
-    }
-
     if (_passwordController.text != _confirmPasswordController.text) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Les mots de passe ne correspondent pas')),
@@ -285,25 +261,30 @@ class _SignupConducteurPageState extends State<SignupConducteurPage> {
         ),
       );
 
-      setState(() => _isSignedUp = true);
+      setState(() {
+        _isSignedUp = true;
+        _isLoading = false;
+        _currentStep = 3;
+      });
 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
-            content: Text('Inscription réussie ! Vérifiez votre email.'),
+            content: Text(
+              'Inscription réussie ! Vérifiez votre email pour le code.',
+            ),
             backgroundColor: Colors.green,
             duration: Duration(seconds: 5),
           ),
         );
       }
     } catch (e) {
+      setState(() => _isLoading = false);
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text('Erreur: $e'), backgroundColor: Colors.red),
         );
       }
-    } finally {
-      setState(() => _isLoading = false);
     }
   }
 
@@ -389,7 +370,11 @@ class _SignupConducteurPageState extends State<SignupConducteurPage> {
             Navigator.pushAndRemoveUntil(
               context,
               MaterialPageRoute(
-                builder: (context) => HomePage(userName: '', userRole: ''),
+                builder:
+                    (context) => HomePage(
+                      userName: _nomController.text,
+                      userRole: 'conducteur',
+                    ),
               ),
               (route) => false,
             );
@@ -419,320 +404,531 @@ class _SignupConducteurPageState extends State<SignupConducteurPage> {
     }
   }
 
-  Widget _buildDocumentCard(String title, File? file, VoidCallback onPick) {
-    return Card(
-      elevation: 2,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-      child: Padding(
-        padding: const EdgeInsets.all(12),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              title,
-              style: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold),
-            ),
-            const SizedBox(height: 8),
-            if (file != null) ...[
-              ClipRRect(
-                borderRadius: BorderRadius.circular(8),
-                child: Image.file(
-                  file,
-                  height: 120,
-                  width: double.infinity,
-                  fit: BoxFit.cover,
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: Colors.white,
+      appBar: AppBar(
+        backgroundColor: Colors.white,
+        elevation: 0,
+        leading:
+            _currentStep > 0
+                ? IconButton(
+                  icon: const Icon(Icons.arrow_back, color: Colors.black),
+                  onPressed: () {
+                    if (_currentStep == 3) {
+                      setState(() => _currentStep = 2);
+                    } else if (_currentStep == 2) {
+                      setState(() => _currentStep = 1);
+                    } else if (_currentStep == 1) {
+                      setState(() => _currentStep = 0);
+                    } else {
+                      Navigator.pop(context);
+                    }
+                  },
+                )
+                : IconButton(
+                  icon: const Icon(Icons.arrow_back, color: Colors.black),
+                  onPressed: () => Navigator.pop(context),
                 ),
-              ),
-              const SizedBox(height: 8),
-            ],
-            SizedBox(
-              width: double.infinity,
-              child: OutlinedButton.icon(
-                onPressed: onPick,
-                icon: Icon(
-                  file == null ? Icons.upload_file : Icons.check_circle,
-                  color: file == null ? Colors.blue : Colors.green,
-                ),
-                label: Text(file == null ? 'Sélectionner' : 'Sélectionné'),
-                style: OutlinedButton.styleFrom(
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                ),
+      ),
+      body: SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 24.0),
+          child: Form(
+            key: _formKey,
+            child: SingleChildScrollView(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: _getFormStep(),
               ),
             ),
-          ],
+          ),
         ),
       ),
     );
   }
 
-  List<Widget> _getPageContent() {
-    switch (_currentPage) {
+  List<Widget> _getFormStep() {
+    switch (_currentStep) {
       case 0:
         return [
-          const Icon(Icons.person_outline, size: 80, color: Colors.blue),
-          const SizedBox(height: 16),
+          const SizedBox(height: 20),
           const Text(
-            'Informations personnelles',
+            'Créer un Compte Conducteur',
             style: TextStyle(
-              fontSize: 26,
+              fontSize: 24,
               fontWeight: FontWeight.bold,
-              color: Colors.blueAccent,
+              color: Colors.black,
             ),
           ),
-          const SizedBox(height: 30),
-          TextFormField(
-            controller: _nomController,
-            decoration: const InputDecoration(
-              labelText: 'Nom complet',
-              prefixIcon: Icon(Icons.person),
-              border: OutlineInputBorder(),
-            ),
-            validator: (val) => val == null || val.isEmpty ? 'Requis' : null,
+          const SizedBox(height: 8),
+          const Text(
+            'Rejoignez notre réseau de conducteurs',
+            style: TextStyle(fontSize: 14, color: Color(0xFF616161)),
           ),
-          const SizedBox(height: 15),
-          TextFormField(
-            controller: _emailController,
-            decoration: const InputDecoration(
-              labelText: 'Email',
-              prefixIcon: Icon(Icons.email_outlined),
-              border: OutlineInputBorder(),
+          const SizedBox(height: 40),
+          const Text(
+            'Nom Complet',
+            style: TextStyle(
+              fontSize: 14,
+              fontWeight: FontWeight.w600,
+              color: Colors.black,
             ),
-            keyboardType: TextInputType.emailAddress,
-            validator: (val) => val == null || val.isEmpty ? 'Requis' : null,
           ),
-          const SizedBox(height: 15),
-          TextFormField(
-            controller: _phoneController,
-            decoration: const InputDecoration(
-              labelText: 'Téléphone',
-              prefixIcon: Icon(Icons.phone),
-              border: OutlineInputBorder(),
+          const SizedBox(height: 8),
+          _buildModernTextField('Prénom Nom', _nomController),
+          const SizedBox(height: 20),
+          const Text(
+            'Email',
+            style: TextStyle(
+              fontSize: 14,
+              fontWeight: FontWeight.w600,
+              color: Colors.black,
             ),
-            keyboardType: TextInputType.phone,
-            validator: (val) => val == null || val.isEmpty ? 'Requis' : null,
           ),
-          const SizedBox(height: 15),
-          TextFormField(
-            controller: _passwordController,
-            decoration: InputDecoration(
-              labelText: 'Mot de passe',
-              prefixIcon: const Icon(Icons.lock_outline),
-              border: const OutlineInputBorder(),
-              suffixIcon: IconButton(
-                icon: Icon(
-                  _obscurePassword ? Icons.visibility_off : Icons.visibility,
+          const SizedBox(height: 8),
+          _buildModernTextField('votre.email@exemple.sn', _emailController),
+          const SizedBox(height: 20),
+          const Text(
+            'Téléphone',
+            style: TextStyle(
+              fontSize: 14,
+              fontWeight: FontWeight.w600,
+              color: Colors.black,
+            ),
+          ),
+          const SizedBox(height: 8),
+          _buildModernTextField('+221 XX XXX XX XX', _phoneController),
+          const SizedBox(height: 20),
+          const Text(
+            'Mot de Passe',
+            style: TextStyle(
+              fontSize: 14,
+              fontWeight: FontWeight.w600,
+              color: Colors.black,
+            ),
+          ),
+          const SizedBox(height: 8),
+          _buildPasswordField('********', _passwordController, true),
+          const SizedBox(height: 20),
+          const Text(
+            'Confirmer le Mot de Passe',
+            style: TextStyle(
+              fontSize: 14,
+              fontWeight: FontWeight.w600,
+              color: Colors.black,
+            ),
+          ),
+          const SizedBox(height: 8),
+          _buildPasswordField('********', _confirmPasswordController, false),
+          const SizedBox(height: 40),
+          Row(
+            children: [
+              Expanded(
+                child: OutlinedButton(
+                  onPressed: () => Navigator.pop(context),
+                  style: OutlinedButton.styleFrom(
+                    padding: const EdgeInsets.symmetric(vertical: 16),
+                    side: const BorderSide(color: Color(0xFF616161)),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                  ),
+                  child: const Text(
+                    '← Précédent',
+                    style: TextStyle(
+                      color: Colors.black,
+                      fontSize: 16,
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
                 ),
-                onPressed:
-                    () => setState(() {
-                      _obscurePassword = !_obscurePassword;
-                    }),
               ),
-            ),
-            obscureText: _obscurePassword,
-            validator: (val) => val == null || val.isEmpty ? 'Requis' : null,
-          ),
-          const SizedBox(height: 15),
-          TextFormField(
-            controller: _confirmPasswordController,
-            decoration: InputDecoration(
-              labelText: 'Confirmer mot de passe',
-              prefixIcon: const Icon(Icons.lock),
-              border: const OutlineInputBorder(),
-              suffixIcon: IconButton(
-                icon: Icon(
-                  _obscureConfirmPassword
-                      ? Icons.visibility_off
-                      : Icons.visibility,
+              const SizedBox(width: 12),
+              Expanded(
+                child: ElevatedButton(
+                  onPressed:
+                      _isLoading
+                          ? null
+                          : () {
+                            if (_formKey.currentState!.validate()) {
+                              setState(() => _currentStep = 1);
+                            }
+                          },
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: const Color(0xFFFDB60A),
+                    padding: const EdgeInsets.symmetric(vertical: 16),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    elevation: 0,
+                  ),
+                  child:
+                      _isLoading
+                          ? const SizedBox(
+                            height: 20,
+                            width: 20,
+                            child: CircularProgressIndicator(
+                              color: Colors.white,
+                              strokeWidth: 2,
+                            ),
+                          )
+                          : const Text(
+                            'Suivant →',
+                            style: TextStyle(
+                              color: Colors.white,
+                              fontSize: 16,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
                 ),
-                onPressed:
-                    () => setState(() {
-                      _obscureConfirmPassword = !_obscureConfirmPassword;
-                    }),
               ),
-            ),
-            obscureText: _obscureConfirmPassword,
-            validator: (val) => val == null || val.isEmpty ? 'Requis' : null,
+            ],
           ),
+          const SizedBox(height: 20),
         ];
 
       case 1:
         return [
-          const Icon(
-            Icons.directions_car_outlined,
-            size: 80,
-            color: Colors.blue,
-          ),
-          const SizedBox(height: 16),
+          const SizedBox(height: 20),
           const Text(
-            'Informations véhicule',
+            'Informations Véhicule',
             style: TextStyle(
-              fontSize: 26,
+              fontSize: 24,
               fontWeight: FontWeight.bold,
-              color: Colors.blueAccent,
+              color: Colors.black,
             ),
           ),
-          const SizedBox(height: 30),
-          DropdownButtonFormField<String>(
+          const SizedBox(height: 8),
+          const Text(
+            'Détails sur votre véhicule et zones',
+            style: TextStyle(fontSize: 14, color: Color(0xFF616161)),
+          ),
+          const SizedBox(height: 40),
+          const Text(
+            'Type de Voiture',
+            style: TextStyle(
+              fontSize: 14,
+              fontWeight: FontWeight.w600,
+              color: Colors.black,
+            ),
+          ),
+          const SizedBox(height: 8),
+          _buildModernDropdown(
             value: _typeVoiture,
-            decoration: const InputDecoration(
-              labelText: 'Type de voiture',
-              prefixIcon: Icon(Icons.directions_car),
-              border: OutlineInputBorder(),
-            ),
-            items:
-                _typesVoiture
-                    .map(
-                      (type) =>
-                          DropdownMenuItem(value: type, child: Text(type)),
-                    )
-                    .toList(),
+            items: _typesVoiture,
+            hint: 'Sélectionnez le type',
             onChanged: (val) => setState(() => _typeVoiture = val),
-            validator: (val) => val == null ? 'Requis' : null,
-          ),
-          const SizedBox(height: 15),
-          DropdownButtonFormField<String>(
-            value: _typeSupport,
-            decoration: const InputDecoration(
-              labelText: 'Type de support',
-              prefixIcon: Icon(Icons.tv),
-              border: OutlineInputBorder(),
-            ),
-            items:
-                _typesSupport
-                    .map(
-                      (type) =>
-                          DropdownMenuItem(value: type, child: Text(type)),
-                    )
-                    .toList(),
-            onChanged: (val) => setState(() => _typeSupport = val),
-            validator: (val) => val == null ? 'Requis' : null,
           ),
           const SizedBox(height: 20),
           const Text(
-            'Zones fréquentées',
-            style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+            'Type de Support',
+            style: TextStyle(
+              fontSize: 14,
+              fontWeight: FontWeight.w600,
+              color: Colors.black,
+            ),
           ),
-          const SizedBox(height: 10),
+          const SizedBox(height: 8),
+          _buildModernDropdown(
+            value: _typeSupport,
+            items: _typesSupport,
+            hint: 'Sélectionnez le support',
+            onChanged: (val) => setState(() => _typeSupport = val),
+          ),
+          const SizedBox(height: 20),
+          const Text(
+            'Zones Fréquentées',
+            style: TextStyle(
+              fontSize: 14,
+              fontWeight: FontWeight.w600,
+              color: Colors.black,
+            ),
+          ),
+          const SizedBox(height: 12),
           Wrap(
             spacing: 8,
             runSpacing: 8,
             children:
                 _zonesDisponibles.map((zone) {
                   final isSelected = _zonesFrequentees.contains(zone);
-                  return FilterChip(
-                    label: Text(zone),
-                    selected: isSelected,
-                    onSelected: (selected) {
+                  return GestureDetector(
+                    onTap: () {
                       setState(() {
-                        selected
-                            ? _zonesFrequentees.add(zone)
-                            : _zonesFrequentees.remove(zone);
+                        isSelected
+                            ? _zonesFrequentees.remove(zone)
+                            : _zonesFrequentees.add(zone);
                       });
                     },
-                    selectedColor: Colors.blue.shade200,
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 16,
+                        vertical: 10,
+                      ),
+                      decoration: BoxDecoration(
+                        color:
+                            isSelected
+                                ? const Color(0xFFFDB60A)
+                                : const Color(0xFFF5F5F5),
+                        borderRadius: BorderRadius.circular(20),
+                      ),
+                      child: Text(
+                        zone,
+                        style: TextStyle(
+                          color: isSelected ? Colors.white : Colors.black,
+                          fontSize: 13,
+                          fontWeight:
+                              isSelected ? FontWeight.w600 : FontWeight.normal,
+                        ),
+                      ),
+                    ),
                   );
                 }).toList(),
           ),
-          const SizedBox(height: 15),
-          DropdownButtonFormField<String>(
-            value: _heuresConduite,
-            decoration: const InputDecoration(
-              labelText: 'Heures de conduite',
-              prefixIcon: Icon(Icons.access_time),
-              border: OutlineInputBorder(),
+          const SizedBox(height: 20),
+          const Text(
+            'Heures de Conduite',
+            style: TextStyle(
+              fontSize: 14,
+              fontWeight: FontWeight.w600,
+              color: Colors.black,
             ),
-            items:
-                _heuresDisponibles
-                    .map((h) => DropdownMenuItem(value: h, child: Text(h)))
-                    .toList(),
-            onChanged: (val) => setState(() => _heuresConduite = val),
-            validator: (val) => val == null ? 'Requis' : null,
           ),
+          const SizedBox(height: 8),
+          _buildModernDropdown(
+            value: _heuresConduite,
+            items: _heuresDisponibles,
+            hint: 'Sélectionnez les heures',
+            onChanged: (val) => setState(() => _heuresConduite = val),
+          ),
+          const SizedBox(height: 40),
+          SizedBox(
+            width: double.infinity,
+            child: ElevatedButton(
+              onPressed:
+                  _isLoading
+                      ? null
+                      : () {
+                        if (_formKey.currentState!.validate() &&
+                            _zonesFrequentees.isNotEmpty) {
+                          setState(() => _currentStep = 2);
+                        } else {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(
+                              content: Text('Sélectionnez au moins une zone'),
+                              backgroundColor: Colors.red,
+                            ),
+                          );
+                        }
+                      },
+              style: ElevatedButton.styleFrom(
+                backgroundColor: const Color(0xFFFDB60A),
+                padding: const EdgeInsets.symmetric(vertical: 16),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                elevation: 0,
+              ),
+              child:
+                  _isLoading
+                      ? const SizedBox(
+                        height: 20,
+                        width: 20,
+                        child: CircularProgressIndicator(
+                          color: Colors.white,
+                          strokeWidth: 2,
+                        ),
+                      )
+                      : const Text(
+                        'Suivant →',
+                        style: TextStyle(
+                          color: Colors.white,
+                          fontSize: 16,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+            ),
+          ),
+          const SizedBox(height: 20),
         ];
 
       case 2:
         return [
-          const Icon(Icons.folder_outlined, size: 80, color: Colors.blue),
-          const SizedBox(height: 16),
+          const SizedBox(height: 20),
           const Text(
-            'Documents requis',
+            'Documents Requis',
             style: TextStyle(
-              fontSize: 26,
+              fontSize: 24,
               fontWeight: FontWeight.bold,
-              color: Colors.blueAccent,
+              color: Colors.black,
             ),
           ),
-          const SizedBox(height: 30),
-          _buildDocumentCard(
-            'CI Recto',
+          const SizedBox(height: 8),
+          const Text(
+            'Téléchargez vos documents d\'identification',
+            style: TextStyle(fontSize: 14, color: Color(0xFF616161)),
+          ),
+          const SizedBox(height: 40),
+          _buildModernDocumentCard(
+            'Carte d\'Identité (Recto)',
             _ciRecto,
             () => pickFile((f) => _ciRecto = f, 'CI Recto'),
           ),
-          const SizedBox(height: 10),
-          _buildDocumentCard(
-            'CI Verso',
+          const SizedBox(height: 16),
+          _buildModernDocumentCard(
+            'Carte d\'Identité (Verso)',
             _ciVerso,
             () => pickFile((f) => _ciVerso = f, 'CI Verso'),
           ),
-          const SizedBox(height: 10),
-          _buildDocumentCard(
-            'CG Recto',
+          const SizedBox(height: 16),
+          _buildModernDocumentCard(
+            'Carte Grise (Recto)',
             _cgRecto,
             () => pickFile((f) => _cgRecto = f, 'CG Recto'),
           ),
-          const SizedBox(height: 10),
-          _buildDocumentCard(
-            'CG Verso',
+          const SizedBox(height: 16),
+          _buildModernDocumentCard(
+            'Carte Grise (Verso)',
             _cgVerso,
             () => pickFile((f) => _cgVerso = f, 'CG Verso'),
           ),
+          const SizedBox(height: 40),
+          SizedBox(
+            width: double.infinity,
+            child: ElevatedButton(
+              onPressed:
+                  _isLoading
+                      ? null
+                      : () {
+                        if (_ciRecto != null &&
+                            _ciVerso != null &&
+                            _cgRecto != null &&
+                            _cgVerso != null) {
+                          signup();
+                        } else {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(
+                              content: Text(
+                                'Veuillez sélectionner tous les documents',
+                              ),
+                              backgroundColor: Colors.red,
+                            ),
+                          );
+                        }
+                      },
+              style: ElevatedButton.styleFrom(
+                backgroundColor: const Color(0xFFFDB60A),
+                padding: const EdgeInsets.symmetric(vertical: 16),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                elevation: 0,
+              ),
+              child:
+                  _isLoading
+                      ? const SizedBox(
+                        height: 20,
+                        width: 20,
+                        child: CircularProgressIndicator(
+                          color: Colors.white,
+                          strokeWidth: 2,
+                        ),
+                      )
+                      : const Text(
+                        'Créer mon Compte',
+                        style: TextStyle(
+                          color: Colors.white,
+                          fontSize: 16,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+            ),
+          ),
+          const SizedBox(height: 20),
         ];
 
       case 3:
         return [
-          const Icon(
-            Icons.verified_user_outlined,
-            size: 80,
-            color: Colors.blue,
-          ),
-          const SizedBox(height: 16),
-          const Text(
-            'Confirmation du compte',
-            style: TextStyle(
-              fontSize: 26,
-              fontWeight: FontWeight.bold,
-              color: Colors.blueAccent,
-            ),
-          ),
-          const SizedBox(height: 10),
-          const Text(
-            'Un code de confirmation a été envoyé à votre adresse e-mail.',
-            textAlign: TextAlign.center,
-          ),
-          const SizedBox(height: 30),
-          TextFormField(
-            controller: _codeController,
-            decoration: const InputDecoration(
-              labelText: 'Code de confirmation',
-              prefixIcon: Icon(Icons.pin_outlined),
-              border: OutlineInputBorder(),
-            ),
-            keyboardType: TextInputType.number,
-          ),
           const SizedBox(height: 20),
-          OutlinedButton.icon(
+          const Text(
+            'Confirmation du Compte',
+            style: TextStyle(
+              fontSize: 24,
+              fontWeight: FontWeight.bold,
+              color: Colors.black,
+            ),
+          ),
+          const SizedBox(height: 8),
+          const Text(
+            'Un code de confirmation a été envoyé à votre email.',
+            style: TextStyle(fontSize: 14, color: Color(0xFF616161)),
+          ),
+          const SizedBox(height: 40),
+          const Text(
+            'Code de Confirmation',
+            style: TextStyle(
+              fontSize: 14,
+              fontWeight: FontWeight.w600,
+              color: Colors.black,
+            ),
+          ),
+          const SizedBox(height: 8),
+          _buildModernTextField('Entrez le code', _codeController),
+          const SizedBox(height: 20),
+          OutlinedButton(
             onPressed: _isLoading ? null : resendConfirmationCode,
-            icon: const Icon(Icons.refresh),
-            label: const Text('Renvoyer le code'),
             style: OutlinedButton.styleFrom(
-              minimumSize: const Size(double.infinity, 50),
+              padding: const EdgeInsets.symmetric(vertical: 16),
+              side: const BorderSide(color: Color(0xFFFDB60A)),
               shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(12),
+                borderRadius: BorderRadius.circular(8),
+              ),
+              minimumSize: const Size(double.infinity, 50),
+            ),
+            child: const Text(
+              'Renvoyer le code',
+              style: TextStyle(
+                color: Color(0xFFFDB60A),
+                fontSize: 16,
+                fontWeight: FontWeight.w600,
               ),
             ),
           ),
+          const SizedBox(height: 40),
+          SizedBox(
+            width: double.infinity,
+            child: ElevatedButton(
+              onPressed: _isLoading ? null : confirmSignupAndUploadDocuments,
+              style: ElevatedButton.styleFrom(
+                backgroundColor: const Color(0xFFFDB60A),
+                padding: const EdgeInsets.symmetric(vertical: 16),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                elevation: 0,
+              ),
+              child:
+                  _isLoading
+                      ? const SizedBox(
+                        height: 20,
+                        width: 20,
+                        child: CircularProgressIndicator(
+                          color: Colors.white,
+                          strokeWidth: 2,
+                        ),
+                      )
+                      : const Text(
+                        'Confirmer',
+                        style: TextStyle(
+                          color: Colors.white,
+                          fontSize: 16,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+            ),
+          ),
+          const SizedBox(height: 20),
         ];
 
       default:
@@ -740,125 +936,216 @@ class _SignupConducteurPageState extends State<SignupConducteurPage> {
     }
   }
 
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      body: Container(
-        decoration: const BoxDecoration(
-          gradient: LinearGradient(
-            colors: [Color(0xFF1565C0), Color(0xFF42A5F5)],
-            begin: Alignment.topCenter,
-            end: Alignment.bottomCenter,
+  Widget _buildModernTextField(String hint, TextEditingController controller) {
+    return TextFormField(
+      controller: controller,
+      decoration: InputDecoration(
+        hintText: hint,
+        hintStyle: const TextStyle(color: Color(0xFF616161), fontSize: 14),
+        filled: true,
+        fillColor: const Color(0xFFF5F5F5),
+        border: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(8),
+          borderSide: BorderSide.none,
+        ),
+        enabledBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(8),
+          borderSide: BorderSide.none,
+        ),
+        focusedBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(8),
+          borderSide: const BorderSide(color: Color(0xFFFDB60A), width: 1),
+        ),
+        contentPadding: const EdgeInsets.symmetric(
+          horizontal: 16,
+          vertical: 16,
+        ),
+      ),
+      validator: (val) => val == null || val.isEmpty ? 'Champ requis' : null,
+    );
+  }
+
+  Widget _buildPasswordField(
+    String hint,
+    TextEditingController controller,
+    bool first,
+  ) {
+    final visible = first ? _obscurePassword : _obscureConfirmPassword;
+    return TextFormField(
+      controller: controller,
+      obscureText: visible,
+      decoration: InputDecoration(
+        hintText: hint,
+        hintStyle: const TextStyle(color: Color(0xFF616161), fontSize: 14),
+        filled: true,
+        fillColor: const Color(0xFFF5F5F5),
+        border: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(8),
+          borderSide: BorderSide.none,
+        ),
+        enabledBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(8),
+          borderSide: BorderSide.none,
+        ),
+        focusedBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(8),
+          borderSide: const BorderSide(color: Color(0xFFFDB60A), width: 1),
+        ),
+        contentPadding: const EdgeInsets.symmetric(
+          horizontal: 16,
+          vertical: 16,
+        ),
+        suffixIcon: IconButton(
+          icon: Icon(
+            visible ? Icons.visibility_off : Icons.visibility,
+            color: const Color(0xFF616161),
+          ),
+          onPressed:
+              () => setState(() {
+                if (first) {
+                  _obscurePassword = !_obscurePassword;
+                } else {
+                  _obscureConfirmPassword = !_obscureConfirmPassword;
+                }
+              }),
+        ),
+      ),
+      validator: (val) => val == null || val.isEmpty ? 'Champ requis' : null,
+    );
+  }
+
+  Widget _buildModernDropdown({
+    required String? value,
+    required List<String> items,
+    required String hint,
+    required Function(String?) onChanged,
+  }) {
+    return DropdownButtonFormField<String>(
+      value: value,
+      decoration: InputDecoration(
+        hintText: hint,
+        hintStyle: const TextStyle(color: Color(0xFF616161), fontSize: 14),
+        filled: true,
+        fillColor: const Color(0xFFF5F5F5),
+        border: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(8),
+          borderSide: BorderSide.none,
+        ),
+        enabledBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(8),
+          borderSide: BorderSide.none,
+        ),
+        focusedBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(8),
+          borderSide: const BorderSide(color: Color(0xFFFDB60A), width: 1),
+        ),
+        contentPadding: const EdgeInsets.symmetric(
+          horizontal: 16,
+          vertical: 16,
+        ),
+      ),
+      items:
+          items
+              .map((item) => DropdownMenuItem(value: item, child: Text(item)))
+              .toList(),
+      onChanged: onChanged,
+      validator: (val) => val == null ? 'Champ requis' : null,
+    );
+  }
+
+  Widget _buildModernDocumentCard(
+    String title,
+    File? file,
+    VoidCallback onPick,
+  ) {
+    return GestureDetector(
+      onTap: onPick,
+      child: Container(
+        width: double.infinity,
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: const Color(0xFFF5F5F5),
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(
+            color:
+                file != null
+                    ? const Color(0xFFFDB60A)
+                    : const Color(0xFF616161),
+            width: file != null ? 2 : 1,
           ),
         ),
-        child: Center(
-          child: Card(
-            elevation: 12,
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(25),
-            ),
-            margin: const EdgeInsets.symmetric(horizontal: 20, vertical: 40),
-            child: Padding(
-              padding: const EdgeInsets.all(24),
-              child: Form(
-                key: _formKey,
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
+        child:
+            file == null
+                ? Column(
                   children: [
-                    Expanded(
-                      child: SingleChildScrollView(
-                        child: Column(children: _getPageContent()),
+                    Container(
+                      padding: const EdgeInsets.all(16),
+                      decoration: BoxDecoration(
+                        color: Colors.white,
+                        borderRadius: BorderRadius.circular(50),
+                      ),
+                      child: const Icon(
+                        Icons.cloud_upload_outlined,
+                        size: 32,
+                        color: Color(0xFF616161),
                       ),
                     ),
-                    const SizedBox(height: 20),
+                    const SizedBox(height: 12),
+                    Text(
+                      title,
+                      style: const TextStyle(
+                        fontSize: 14,
+                        fontWeight: FontWeight.w600,
+                        color: Colors.black,
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    const Text(
+                      'JPG, PNG (MAX 5MB)',
+                      style: TextStyle(color: Color(0xFF616161), fontSize: 12),
+                    ),
+                  ],
+                )
+                : Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
                     Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
-                        if (_currentPage > 0)
-                          Expanded(
-                            child: Padding(
-                              padding: const EdgeInsets.only(right: 8),
-                              child: OutlinedButton(
-                                onPressed: () => setState(() => _currentPage--),
-                                style: OutlinedButton.styleFrom(
-                                  minimumSize: const Size(0, 50),
-                                  shape: RoundedRectangleBorder(
-                                    borderRadius: BorderRadius.circular(12),
-                                  ),
-                                ),
-                                child: const Text('Précédent'),
-                              ),
-                            ),
-                          ),
+                        const Icon(
+                          Icons.check_circle,
+                          color: Color(0xFFFDB60A),
+                          size: 20,
+                        ),
+                        const SizedBox(width: 8),
                         Expanded(
-                          child: Padding(
-                            padding: EdgeInsets.only(
-                              left: _currentPage > 0 ? 8 : 0,
-                            ),
-                            child: ElevatedButton(
-                              style: ElevatedButton.styleFrom(
-                                backgroundColor: Colors.blue,
-                                minimumSize: const Size(0, 50),
-                                shape: RoundedRectangleBorder(
-                                  borderRadius: BorderRadius.circular(12),
-                                ),
-                              ),
-                              onPressed:
-                                  _isLoading
-                                      ? null
-                                      : () {
-                                        if (_formKey.currentState!.validate()) {
-                                          if (_currentPage < 3) {
-                                            if (_currentPage == 2) {
-                                              signup();
-                                              setState(() => _currentPage++);
-                                            } else {
-                                              setState(() => _currentPage++);
-                                            }
-                                          } else {
-                                            confirmSignupAndUploadDocuments();
-                                          }
-                                        } else {
-                                          ScaffoldMessenger.of(
-                                            context,
-                                          ).showSnackBar(
-                                            const SnackBar(
-                                              content: Text(
-                                                'Veuillez remplir tous les champs obligatoires.',
-                                              ),
-                                              backgroundColor: Colors.red,
-                                              duration: Duration(seconds: 2),
-                                            ),
-                                          );
-                                        }
-                                      },
-                              child:
-                                  _isLoading
-                                      ? const CircularProgressIndicator(
-                                        color: Colors.white,
-                                      )
-                                      : Text(
-                                        _currentPage == 2
-                                            ? 'S\'inscrire'
-                                            : _currentPage == 3
-                                            ? 'Confirmer'
-                                            : 'Suivant',
-                                        style: const TextStyle(
-                                          fontSize: 18,
-                                          color: Colors.white,
-                                        ),
-                                      ),
+                          child: Text(
+                            title,
+                            style: const TextStyle(
+                              fontSize: 14,
+                              fontWeight: FontWeight.w600,
+                              color: Colors.black,
                             ),
                           ),
                         ),
                       ],
                     ),
+                    const SizedBox(height: 12),
+                    ClipRRect(
+                      borderRadius: BorderRadius.circular(8),
+                      child: Image.file(
+                        file,
+                        height: 120,
+                        width: double.infinity,
+                        fit: BoxFit.cover,
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    Text(
+                      'Appuyez pour changer',
+                      style: TextStyle(color: Color(0xFF616161), fontSize: 12),
+                    ),
                   ],
                 ),
-              ),
-            ),
-          ),
-        ),
       ),
     );
   }

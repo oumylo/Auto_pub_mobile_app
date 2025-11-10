@@ -1,5 +1,6 @@
+import 'package:auto_pub_mobil_app/screens/landing_page.dart';
 import 'package:flutter/material.dart';
-import 'package:auto_pub_mobil_app/screens/LoginPage.dart';
+import 'package:google_fonts/google_fonts.dart';
 
 class WelcomePage extends StatefulWidget {
   const WelcomePage({super.key});
@@ -44,191 +45,122 @@ class _WelcomePageState extends State<WelcomePage>
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      body: Container(
-        decoration: const BoxDecoration(
-          gradient: LinearGradient(
-            colors: [Color(0xFF1565C0), Color(0xFF42A5F5)],
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-          ),
-        ),
-        child: SafeArea(
-          child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 32),
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                const Spacer(),
-
-                // Logo avec animation
-                FadeTransition(
-                  opacity: _fadeAnimation,
-                  child: SlideTransition(
-                    position: _slideAnimation,
-                    child: Container(
-                      padding: const EdgeInsets.all(32),
-                      decoration: BoxDecoration(
-                        color: Colors.white,
-                        shape: BoxShape.circle,
-                        boxShadow: [
-                          BoxShadow(
-                            color: Colors.black.withOpacity(0.2),
-                            blurRadius: 20,
-                            spreadRadius: 5,
-                          ),
-                        ],
-                      ),
-                      child: Image.asset(
-                        'assets/images/page1.png', // Assurez-vous d'ajouter votre logo ici
-                        width: 120,
-                        height: 120,
-                        errorBuilder: (context, error, stackTrace) {
-                          // Si l'image n'est pas disponible, afficher une icône par défaut
-                          return Icon(
-                            Icons.campaign,
-                            size: 120,
-                            color: Colors.blue.shade700,
-                          );
-                        },
-                      ),
-                    ),
-                  ),
-                ),
-
-                const SizedBox(height: 48),
-
-                // Titre avec animation
-                FadeTransition(
-                  opacity: _fadeAnimation,
-                  child: const Text(
-                    'AutoPub Studio',
-                    style: TextStyle(
-                      fontSize: 36,
-                      fontWeight: FontWeight.bold,
-                      color: Colors.white,
-                      letterSpacing: 1.2,
-                    ),
-                    textAlign: TextAlign.center,
-                  ),
-                ),
-
-                const SizedBox(height: 16),
-
-                // Sous-titre avec animation
-                FadeTransition(
-                  opacity: _fadeAnimation,
-                  child: Text(
-                    'Publicité mobile intelligente',
-                    style: TextStyle(
-                      fontSize: 18,
-                      color: Colors.white.withOpacity(0.9),
-                      letterSpacing: 0.5,
-                    ),
-                    textAlign: TextAlign.center,
-                  ),
-                ),
-
-                const SizedBox(height: 60),
-
-                // Bouton Commencer
-                FadeTransition(
-                  opacity: _fadeAnimation,
-                  child: SizedBox(
-                    width: double.infinity,
-                    height: 56,
-                    child: ElevatedButton(
-                      onPressed: () {
-                        Navigator.pushReplacement(
-                          context,
-                          MaterialPageRoute(
-                            builder: (context) => const LoginPage(),
-                          ),
-                        );
-                      },
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: Colors.white,
-                        foregroundColor: Colors.blue.shade700,
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(16),
-                        ),
-                        elevation: 8,
-                        shadowColor: Colors.black.withOpacity(0.3),
-                      ),
-                      child: Row(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          const Text(
-                            'Commencer',
-                            style: TextStyle(
-                              fontSize: 18,
-                              fontWeight: FontWeight.bold,
-                              letterSpacing: 0.5,
-                            ),
-                          ),
-                          const SizedBox(width: 8),
-                          Icon(
-                            Icons.arrow_forward,
-                            color: Colors.blue.shade700,
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
-                ),
-
-                const Spacer(),
-
-                // Footer
-                FadeTransition(
-                  opacity: _fadeAnimation,
-                  child: Padding(
-                    padding: const EdgeInsets.only(bottom: 32),
-                    child: Column(
-                      children: [
-                        Row(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            _buildFeatureItem(Icons.speed, 'Rapide'),
-                            const SizedBox(width: 32),
-                            _buildFeatureItem(Icons.security, 'Sécurisé'),
-                            const SizedBox(width: 32),
-                            _buildFeatureItem(Icons.verified, 'Fiable'),
-                          ],
-                        ),
-                        const SizedBox(height: 24),
-                        Text(
-                          '© 2024 AutoPub Studio. Tous droits réservés.',
-                          style: TextStyle(
-                            color: Colors.white.withOpacity(0.7),
-                            fontSize: 12,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-              ],
+      body: Stack(
+        children: [
+          // 🖼️ Image de fond
+          Positioned.fill(
+            child: Image.asset(
+              'assets/images/fond_chauffeur.png',
+              fit: BoxFit.cover,
             ),
           ),
-        ),
-      ),
-    );
-  }
 
-  Widget _buildFeatureItem(IconData icon, String label) {
-    return Column(
-      children: [
-        Icon(icon, color: Colors.white, size: 28),
-        const SizedBox(height: 4),
-        Text(
-          label,
-          style: TextStyle(
-            color: Colors.white.withOpacity(0.9),
-            fontSize: 12,
-            fontWeight: FontWeight.w500,
+          // 🟦 Dégradé sombre en bas
+          Positioned.fill(
+            child: Container(
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  colors: [
+                    Colors.transparent,
+                    const Color(0xFF0A426D).withOpacity(0.95),
+                  ],
+                  begin: Alignment.topCenter,
+                  end: Alignment.bottomCenter,
+                ),
+              ),
+            ),
           ),
-        ),
-      ],
+
+          // 🌟 Contenu principal
+          SafeArea(
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 30, vertical: 40),
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.end,
+                children: [
+                  // Logo A
+                  FadeTransition(
+                    opacity: _fadeAnimation,
+                    child: SlideTransition(
+                      position: _slideAnimation,
+                      child: Image.asset(
+                        'assets/images/APS-logo5.png',
+                        width: 70,
+                        height: 70,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 24),
+
+                  // Texte : Bienvenue dans
+                  FadeTransition(
+                    opacity: _fadeAnimation,
+                    child: Text(
+                      'Bienvenue dans',
+                      style: GoogleFonts.poppins(
+                        color: Colors.white,
+                        fontSize: 18,
+                        fontWeight: FontWeight.w400,
+                      ),
+                    ),
+                  ),
+
+                  const SizedBox(height: 6),
+
+                  FadeTransition(
+                    opacity: _fadeAnimation,
+                    child: Text(
+                      'AUTOPUB STUDIO',
+                      style: GoogleFonts.poppins(
+                        color: Colors.white,
+                        fontSize: 24,
+                        fontWeight: FontWeight.bold,
+                        letterSpacing: 1.2,
+                      ),
+                    ),
+                  ),
+
+                  const SizedBox(height: 40),
+
+                  
+                  FadeTransition(
+                    opacity: _fadeAnimation,
+                    child: SizedBox(
+                      width: double.infinity,
+                      height: 50,
+                      child: ElevatedButton(
+                        onPressed: () {
+                          Navigator.pushReplacement(
+                            context,
+                            MaterialPageRoute(
+                              builder: (context) => const LandingPage(),
+                            ),
+                          );
+                        },
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: const Color(0xFFFDA800),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(30),
+                          ),
+                          elevation: 6,
+                        ),
+                        child: Text(
+                          'Commencez',
+                          style: GoogleFonts.poppins(
+                            color: Colors.black,
+                            fontSize: 16,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ],
+      ),
     );
   }
 }

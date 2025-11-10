@@ -95,81 +95,83 @@ class _ListeConducteursPageState extends State<ListeConducteursPage> {
     }
   }
 
-  Future<void> _deleteConducteur(String id, String nom) async {
-    final confirm = await showDialog<bool>(
-      context: context,
-      builder:
-          (context) => AlertDialog(
-            title: const Text('Confirmer la suppression'),
-            content: Text(
-              'Voulez-vous vraiment supprimer le conducteur "$nom" ?',
-            ),
-            actions: [
-              TextButton(
-                onPressed: () => Navigator.pop(context, false),
-                child: const Text('Annuler'),
-              ),
-              ElevatedButton(
-                onPressed: () => Navigator.pop(context, true),
-                style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
-                child: const Text('Supprimer'),
-              ),
-            ],
-          ),
-    );
+  // Future<void> _deleteConducteur(String id, String nom) async
+  // {
+  //   final confirm = await showDialog<bool>(
+  //     context: context,
+  //     builder:
+  //         (context) => AlertDialog(
+  //           title: const Text('Confirmer la suppression'),
+  //           content: Text(
+  //             'Voulez-vous vraiment supprimer le conducteur "$nom" ?',
+  //           ),
+  //           actions: [
+  //             TextButton(
+  //               onPressed: () => Navigator.pop(context, false),
+  //               child: const Text('Annuler'),
+  //             ),
+  //             ElevatedButton
+  //             (
+  //               onPressed: () => Navigator.pop(context, true),
+  //               style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
+  //               child: const Text('Supprimer'),
+  //             ),
+  //           ],
+  //         ),
+  //   );
 
-    if (confirm != true) return;
+  //   if (confirm != true) return;
 
-    try {
-      const mutation = '''
-        mutation DeleteConducteur(\$input: DeleteConducteurInput!) {
-          deleteConducteur(input: \$input) {
-            id
-          }
-        }
-      ''';
+  //   try {
+  //     const mutation = '''
+  //       mutation DeleteConducteur(\$input: DeleteConducteurInput!) {
+  //         deleteConducteur(input: \$input) {
+  //           id
+  //         }
+  //       }
+  //     ''';
 
-      final variables = {
-        'input': {'id': id},
-      };
+  //     final variables = {
+  //       'input': {'id': id},
+  //     };
 
-      final request = GraphQLRequest<String>(
-        document: mutation,
-        variables: variables,
-      );
+  //     final request = GraphQLRequest<String>(
+  //       document: mutation,
+  //       variables: variables,
+  //     );
 
-      final response = await Amplify.API.mutate(request: request).response;
+  //     final response = await Amplify.API.mutate(request: request).response;
 
-      if (response.errors.isNotEmpty) {
-        final errorMsg = response.errors.map((e) => e.message).join(', ');
-        safePrint('Erreurs GraphQL: $errorMsg');
-        throw Exception('Erreur GraphQL: $errorMsg');
-      }
+  //     if (response.errors.isNotEmpty) {
+  //       final errorMsg = response.errors.map((e) => e.message).join(', ');
+  //       safePrint('Erreurs GraphQL: $errorMsg');
+  //       throw Exception('Erreur GraphQL: $errorMsg');
+  //     }
 
-      safePrint('Conducteur supprimé avec succès');
+  //     safePrint('Conducteur supprimé avec succès');
 
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Conducteur "$nom" supprimé avec succès'),
-            backgroundColor: Colors.green,
-          ),
-        );
-        _loadConducteurs();
-      }
-    } catch (e) {
-      safePrint('Erreur suppression: $e');
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Erreur: $e'),
-            backgroundColor: Colors.red,
-            duration: const Duration(seconds: 5),
-          ),
-        );
-      }
-    }
-  }
+  //     if (mounted) {
+  //       ScaffoldMessenger.of(context).showSnackBar(
+  //         SnackBar(
+  //           content: Text('Conducteur "$nom" supprimé avec succès'),
+  //           backgroundColor: Colors.green,
+  //         ),
+  //       );
+  //       _loadConducteurs();
+  //     }
+  //   } catch (e) {
+  //     safePrint('Erreur suppression: $e');
+  //     if (mounted) {
+  //       ScaffoldMessenger.of(context).showSnackBar(
+  //         SnackBar(
+  //           content: Text('Erreur: $e'),
+  //           backgroundColor: Colors.red,
+  //           duration: const Duration(seconds: 5),
+  //         ),
+  //       );
+  //     }
+  //   }
+  // }
 
   Future<void> _viewDocuments(Map<String, dynamic> conducteur) async {
     showDialog(
@@ -230,7 +232,7 @@ class _ListeConducteursPageState extends State<ListeConducteursPage> {
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
       child: ExpansionTile(
         leading: CircleAvatar(
-          backgroundColor: Colors.blue,
+          backgroundColor: Color(0xFF0A426D),
           child: Text(
             conducteur['nom']?.substring(0, 1).toUpperCase() ?? 'C',
             style: const TextStyle(
@@ -317,24 +319,24 @@ class _ListeConducteursPageState extends State<ListeConducteursPage> {
                       ),
                     ),
                     const SizedBox(width: 12),
-                    Expanded(
-                      child: ElevatedButton.icon(
-                        onPressed:
-                            () => _deleteConducteur(
-                              conducteur['id'],
-                              conducteur['nom'] ?? 'Inconnu',
-                            ),
-                        icon: const Icon(Icons.delete, size: 18),
-                        label: const Text('Supprimer'),
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: Colors.red,
-                          foregroundColor: Colors.white,
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(8),
-                          ),
-                        ),
-                      ),
-                    ),
+                    // Expanded(
+                    //   child: ElevatedButton.icon(
+                    //     onPressed:
+                    //         () => _deleteConducteur(
+                    //           conducteur['id'],
+                    //           conducteur['nom'] ?? 'Inconnu',
+                    //         ),
+                    //     icon: const Icon(Icons.delete, size: 18),
+                    //     label: const Text('Supprimer'),
+                    //     style: ElevatedButton.styleFrom(
+                    //       backgroundColor: Colors.red,
+                    //       foregroundColor: Colors.white,
+                    //       shape: RoundedRectangleBorder(
+                    //         borderRadius: BorderRadius.circular(8),
+                    //       ),
+                    //     ),
+                    //   ),
+                    // ),
                   ],
                 ),
               ],
@@ -348,7 +350,7 @@ class _ListeConducteursPageState extends State<ListeConducteursPage> {
   Widget _buildInfoRow(IconData icon, String label, String value) {
     return Row(
       children: [
-        Icon(icon, size: 20, color: Colors.blue),
+        Icon(icon, size: 20, color: Color(0xFF0A426D)),
         const SizedBox(width: 8),
         Text('$label: ', style: const TextStyle(fontWeight: FontWeight.bold)),
         Expanded(
@@ -361,17 +363,18 @@ class _ListeConducteursPageState extends State<ListeConducteursPage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('Liste des Conducteurs'),
-        backgroundColor: Colors.blue,
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.refresh),
-            onPressed: _loadConducteurs,
-            tooltip: 'Actualiser',
-          ),
-        ],
-      ),
+      // appBar: AppBar
+      // (
+      //   title: const Text('Liste des Conducteurs'),
+      //   backgroundColor: Colors.blue,
+      //   actions: [
+      //     IconButton(
+      //       icon: const Icon(Icons.refresh),
+      //       onPressed: _loadConducteurs,
+      //       tooltip: 'Actualiser',
+      //     ),
+      //   ],
+      // ),
       body:
           _isLoading
               ? const Center(child: CircularProgressIndicator())
@@ -435,7 +438,7 @@ class _ListeConducteursPageState extends State<ListeConducteursPage> {
                       padding: const EdgeInsets.all(16),
                       child: Row(
                         children: [
-                          const Icon(Icons.people, color: Colors.blue),
+                          const Icon(Icons.people, color: Color(0xFF0A426D)),
                           const SizedBox(width: 8),
                           Text(
                             '${_conducteurs.length} conducteur(s) inscrit(s)',

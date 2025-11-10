@@ -4,11 +4,13 @@ import 'package:amplify_auth_cognito/amplify_auth_cognito.dart';
 import 'package:amplify_storage_s3/amplify_storage_s3.dart';
 import 'package:amplify_api/amplify_api.dart';
 import 'amplifyconfiguration.dart';
-import 'screens/welcomePage.dart';
+import 'screens/onboarding/splash_screen.dart';
+
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await _configureAmplify();
+  
   runApp(const MyApp());
 }
 
@@ -19,7 +21,6 @@ Future<void> _configureAmplify() async {
     final api = AmplifyAPI();
 
     await Amplify.addPlugins([auth, storage, api]);
-
     await Amplify.configure(amplifyconfig);
 
     safePrint(' Amplify configuré avec succès');
@@ -39,7 +40,7 @@ class MyApp extends StatelessWidget {
       title: 'Auto Pub Mobil App',
       debugShowCheckedModeBanner: false,
       theme: ThemeData(primarySwatch: Colors.blue),
-      home: const WelcomePage(),
+      home: const SplashScreen(),
     );
   }
 }

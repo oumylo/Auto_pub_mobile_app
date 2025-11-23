@@ -1,10 +1,10 @@
 import 'package:auto_pub_mobil_app/home_page.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:image_picker/image_picker.dart';
 import 'dart:io';
 import 'package:amplify_flutter/amplify_flutter.dart';
 import 'package:amplify_auth_cognito/amplify_auth_cognito.dart';
-
 
 class SignupConducteurPage extends StatefulWidget {
   const SignupConducteurPage({super.key});
@@ -90,6 +90,122 @@ class _SignupConducteurPageState extends State<SignupConducteurPage> {
     super.dispose();
   }
 
+  // Validation du numéro de téléphone
+  String? _validatePhone(String? value) {
+    if (value == null || value.isEmpty) {
+      return 'Champ requis';
+    }
+
+    final cleanValue = value.replaceAll(' ', '');
+
+    if (!RegExp(r'^\+?\d+$').hasMatch(cleanValue)) {
+      return 'Le numéro ne doit contenir que des chiffres';
+    }
+
+    if (cleanValue.startsWith('+221')) {
+      if (cleanValue.length != 13) {
+        return 'Format invalide. Ex: +221 77 XXX XX XX';
+      }
+    } else if (cleanValue.length != 9) {
+      return 'Le numéro doit contenir 9 chiffres';
+    }
+
+    return null;
+  }
+
+  // Validation de l'email
+  String? _validateEmail(String? value) {
+    if (value == null || value.isEmpty) {
+      return 'Champ requis';
+    }
+
+    final emailRegex = RegExp(
+      r'^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$',
+    );
+
+    if (!emailRegex.hasMatch(value)) {
+      return 'Format email invalide (ex: nom@exemple.com)';
+    }
+
+    return null;
+  }
+
+  // Validation du mot de passe
+  String? _validatePassword(String? value) {
+    if (value == null || value.isEmpty) {
+      return 'Champ requis';
+    }
+
+    if (value.length < 8) {
+      return 'Le mot de passe doit contenir au moins 8 caractères';
+    }
+
+    if (!RegExp(r'^(?=.*[a-z])(?=.*[A-Z])(?=.*\d).+$').hasMatch(value)) {
+      return 'Doit contenir majuscule, minuscule et chiffre';
+    }
+
+    return null;
+  }
+
+  // Validation de la confirmation du mot de passe
+  String? _validateConfirmPassword(String? value) {
+    if (value == null || value.isEmpty) {
+      return 'Champ requis';
+    }
+
+    if (value != _passwordController.text) {
+      return 'Les mots de passe ne correspondent pas';
+    }
+
+    return null;
+  }
+
+  // Validation avant de passer à l'étape suivante
+  bool _validateCurrentStep() {
+    if (_currentStep == 0) {
+      if (!_formKey.currentState!.validate()) {
+        return false;
+      }
+    } else if (_currentStep == 1) {
+      if (_typeVoiture == null ||
+          _typeSupport == null ||
+          _heuresConduite == null) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Veuillez remplir tous les champs'),
+            backgroundColor: Colors.red,
+          ),
+        );
+        return false;
+      }
+
+      if (_zonesFrequentees.isEmpty) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Sélectionnez au moins une zone'),
+            backgroundColor: Colors.red,
+          ),
+        );
+        return false;
+      }
+    } else if (_currentStep == 2) {
+      if (_ciRecto == null ||
+          _ciVerso == null ||
+          _cgRecto == null ||
+          _cgVerso == null) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Veuillez sélectionner tous les documents'),
+            backgroundColor: Colors.red,
+          ),
+        );
+        return false;
+      }
+    }
+
+    return true;
+  }
+
   Future<void> resendConfirmationCode() async {
     setState(() => _isLoading = true);
 
@@ -122,6 +238,7 @@ class _SignupConducteurPageState extends State<SignupConducteurPage> {
   Future<void> pickFile(Function(File) setFile, String documentName) async {
     final pickedFile = await ImagePicker().pickImage(
       source: ImageSource.gallery,
+      imageQuality: 85,
     );
     if (pickedFile != null) {
       setState(() {
@@ -138,14 +255,19 @@ class _SignupConducteurPageState extends State<SignupConducteurPage> {
   Future<String> uploadFile(File file, String userId, String filename) async {
     try {
       final timestamp = DateTime.now().millisecondsSinceEpoch;
-      final key = 'public/conducteurs/$userId/$filename-$timestamp.png';
+      final extension = file.path.split('.').last;
+      final key = 'public/conducteurs/$userId/$filename-$timestamp.$extension';
 
       safePrint('Upload vers: $key');
 
-      await Amplify.Storage.uploadFile(
-        localFile: AWSFile.fromPath(file.path),
-        path: StoragePath.fromString(key),
-      ).result;
+      final result =
+          await Amplify.Storage.uploadFile(
+            localFile: AWSFile.fromPath(file.path),
+            path: StoragePath.fromString(key),
+            options: const StorageUploadFileOptions(
+              metadata: {'contentType': 'image/jpeg'},
+            ),
+          ).result;
 
       safePrint('Upload réussi: $key');
       return key;
@@ -169,8 +291,13 @@ class _SignupConducteurPageState extends State<SignupConducteurPage> {
     String? cgVersoUrl,
   }) async {
     try {
+      // ✅ Récupérer le userSub AVANT de créer le conducteur
+      final user = await Amplify.Auth.getCurrentUser();
+      final userSub = user.userId;
+
       final variables = {
         'input': {
+          'owner': userSub, // ✅ AJOUT DU CHAMP OWNER
           'nom': nom,
           'email': email,
           'telephone': telephone,
@@ -186,31 +313,33 @@ class _SignupConducteurPageState extends State<SignupConducteurPage> {
       };
 
       const mutation = r'''
-        mutation CreateConducteur($input: CreateConducteurInput!) {
-          createConducteur(input: $input) {
-            id
-            nom
-            email
-            telephone
-            typeSupport
-            typeVoiture
-            zones
-            heuresConduite
-            ciRectoUrl
-            ciVersoUrl
-            cgRectoUrl
-            cgVersoUrl
-            createdAt
-            updatedAt
-          }
+      mutation CreateConducteur($input: CreateConducteurInput!) {
+        createConducteur(input: $input) {
+          id
+          owner
+          nom
+          email
+          telephone
+          typeSupport
+          typeVoiture
+          zones
+          heuresConduite
+          ciRectoUrl
+          ciVersoUrl
+          cgRectoUrl
+          cgVersoUrl
+          createdAt
+          updatedAt
         }
-      ''';
+      }
+    ''';
 
       safePrint('Variables GraphQL: $variables');
 
       final request = GraphQLRequest<String>(
         document: mutation,
         variables: variables,
+        authorizationMode: APIAuthorizationType.userPools,
       );
 
       final response = await Amplify.API.mutate(request: request).response;
@@ -221,23 +350,16 @@ class _SignupConducteurPageState extends State<SignupConducteurPage> {
         throw Exception('Erreur GraphQL: $errorMsg');
       }
 
-      safePrint('Conducteur créé avec succès');
+      safePrint('✅ Conducteur créé avec succès');
       safePrint('Données: ${response.data}');
     } catch (e) {
-      safePrint('Erreur createConducteur: $e');
+      safePrint('❌ Erreur createConducteur: $e');
       rethrow;
     }
   }
 
   Future<void> signup() async {
-    if (!_formKey.currentState!.validate()) return;
-
-    if (_passwordController.text != _confirmPasswordController.text) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Les mots de passe ne correspondent pas')),
-      );
-      return;
-    }
+    if (!_validateCurrentStep()) return;
 
     setState(() => _isLoading = true);
 
@@ -248,6 +370,11 @@ class _SignupConducteurPageState extends State<SignupConducteurPage> {
         safePrint('Aucun utilisateur à déconnecter');
       }
 
+      String phoneNumber = _phoneController.text.trim().replaceAll(' ', '');
+      if (!phoneNumber.startsWith('+221')) {
+        phoneNumber = '+221$phoneNumber';
+      }
+
       await Amplify.Auth.signUp(
         username: _emailController.text.trim(),
         password: _passwordController.text,
@@ -255,7 +382,7 @@ class _SignupConducteurPageState extends State<SignupConducteurPage> {
           userAttributes: {
             AuthUserAttributeKey.email: _emailController.text.trim(),
             AuthUserAttributeKey.name: _nomController.text,
-            AuthUserAttributeKey.phoneNumber: _phoneController.text,
+            AuthUserAttributeKey.phoneNumber: phoneNumber,
             const CognitoUserAttributeKey.custom('custom:role'): 'conducteur',
           },
         ),
@@ -340,10 +467,15 @@ class _SignupConducteurPageState extends State<SignupConducteurPage> {
           final cgRectoKey = await uploadFile(_cgRecto!, userId, 'cgRecto');
           final cgVersoKey = await uploadFile(_cgVerso!, userId, 'cgVerso');
 
+          String phoneNumber = _phoneController.text.trim().replaceAll(' ', '');
+          if (!phoneNumber.startsWith('+221')) {
+            phoneNumber = '+221$phoneNumber';
+          }
+
           await createConducteur(
             nom: _nomController.text,
             email: _emailController.text.trim(),
-            telephone: _phoneController.text,
+            telephone: phoneNumber,
             typeSupport: _typeSupport!,
             typeVoiture: _typeVoiture!,
             zones: _zonesFrequentees,
@@ -488,7 +620,7 @@ class _SignupConducteurPageState extends State<SignupConducteurPage> {
             ),
           ),
           const SizedBox(height: 8),
-          _buildModernTextField('votre.email@exemple.sn', _emailController),
+          _buildEmailField(),
           const SizedBox(height: 20),
           const Text(
             'Téléphone',
@@ -499,7 +631,7 @@ class _SignupConducteurPageState extends State<SignupConducteurPage> {
             ),
           ),
           const SizedBox(height: 8),
-          _buildModernTextField('+221 XX XXX XX XX', _phoneController),
+          _buildPhoneField(),
           const SizedBox(height: 20),
           const Text(
             'Mot de Passe',
@@ -552,7 +684,7 @@ class _SignupConducteurPageState extends State<SignupConducteurPage> {
                       _isLoading
                           ? null
                           : () {
-                            if (_formKey.currentState!.validate()) {
+                            if (_validateCurrentStep()) {
                               setState(() => _currentStep = 1);
                             }
                           },
@@ -710,16 +842,8 @@ class _SignupConducteurPageState extends State<SignupConducteurPage> {
                   _isLoading
                       ? null
                       : () {
-                        if (_formKey.currentState!.validate() &&
-                            _zonesFrequentees.isNotEmpty) {
+                        if (_validateCurrentStep()) {
                           setState(() => _currentStep = 2);
-                        } else {
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            const SnackBar(
-                              content: Text('Sélectionnez au moins une zone'),
-                              backgroundColor: Colors.red,
-                            ),
-                          );
                         }
                       },
               style: ElevatedButton.styleFrom(
@@ -801,20 +925,8 @@ class _SignupConducteurPageState extends State<SignupConducteurPage> {
                   _isLoading
                       ? null
                       : () {
-                        if (_ciRecto != null &&
-                            _ciVerso != null &&
-                            _cgRecto != null &&
-                            _cgVerso != null) {
+                        if (_validateCurrentStep()) {
                           signup();
-                        } else {
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            const SnackBar(
-                              content: Text(
-                                'Veuillez sélectionner tous les documents',
-                              ),
-                              backgroundColor: Colors.red,
-                            ),
-                          );
                         }
                       },
               style: ElevatedButton.styleFrom(
@@ -956,12 +1068,97 @@ class _SignupConducteurPageState extends State<SignupConducteurPage> {
           borderRadius: BorderRadius.circular(8),
           borderSide: const BorderSide(color: Color(0xFFFDB60A), width: 1),
         ),
+        errorBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(8),
+          borderSide: const BorderSide(color: Colors.red, width: 1),
+        ),
+        focusedErrorBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(8),
+          borderSide: const BorderSide(color: Colors.red, width: 1),
+        ),
         contentPadding: const EdgeInsets.symmetric(
           horizontal: 16,
           vertical: 16,
         ),
       ),
       validator: (val) => val == null || val.isEmpty ? 'Champ requis' : null,
+    );
+  }
+
+  Widget _buildEmailField() {
+    return TextFormField(
+      controller: _emailController,
+      keyboardType: TextInputType.emailAddress,
+      decoration: InputDecoration(
+        hintText: 'votre.email@exemple.sn',
+        hintStyle: const TextStyle(color: Color(0xFF616161), fontSize: 14),
+        filled: true,
+        fillColor: const Color(0xFFF5F5F5),
+        border: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(8),
+          borderSide: BorderSide.none,
+        ),
+        enabledBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(8),
+          borderSide: BorderSide.none,
+        ),
+        focusedBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(8),
+          borderSide: const BorderSide(color: Color(0xFFFDB60A), width: 1),
+        ),
+        errorBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(8),
+          borderSide: const BorderSide(color: Colors.red, width: 1),
+        ),
+        focusedErrorBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(8),
+          borderSide: const BorderSide(color: Colors.red, width: 1),
+        ),
+        contentPadding: const EdgeInsets.symmetric(
+          horizontal: 16,
+          vertical: 16,
+        ),
+      ),
+      validator: _validateEmail,
+    );
+  }
+
+  Widget _buildPhoneField() {
+    return TextFormField(
+      controller: _phoneController,
+      keyboardType: TextInputType.phone,
+      inputFormatters: [FilteringTextInputFormatter.allow(RegExp(r'[\d\s+]'))],
+      decoration: InputDecoration(
+        hintText: '77 XXX XX XX',
+        hintStyle: const TextStyle(color: Color(0xFF616161), fontSize: 14),
+        filled: true,
+        fillColor: const Color(0xFFF5F5F5),
+        border: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(8),
+          borderSide: BorderSide.none,
+        ),
+        enabledBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(8),
+          borderSide: BorderSide.none,
+        ),
+        focusedBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(8),
+          borderSide: const BorderSide(color: Color(0xFFFDB60A), width: 1),
+        ),
+        errorBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(8),
+          borderSide: const BorderSide(color: Colors.red, width: 1),
+        ),
+        focusedErrorBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(8),
+          borderSide: const BorderSide(color: Colors.red, width: 1),
+        ),
+        contentPadding: const EdgeInsets.symmetric(
+          horizontal: 16,
+          vertical: 16,
+        ),
+      ),
+      validator: _validatePhone,
     );
   }
 
@@ -991,6 +1188,14 @@ class _SignupConducteurPageState extends State<SignupConducteurPage> {
           borderRadius: BorderRadius.circular(8),
           borderSide: const BorderSide(color: Color(0xFFFDB60A), width: 1),
         ),
+        errorBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(8),
+          borderSide: const BorderSide(color: Colors.red, width: 1),
+        ),
+        focusedErrorBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(8),
+          borderSide: const BorderSide(color: Colors.red, width: 1),
+        ),
         contentPadding: const EdgeInsets.symmetric(
           horizontal: 16,
           vertical: 16,
@@ -1010,7 +1215,7 @@ class _SignupConducteurPageState extends State<SignupConducteurPage> {
               }),
         ),
       ),
-      validator: (val) => val == null || val.isEmpty ? 'Champ requis' : null,
+      validator: first ? _validatePassword : _validateConfirmPassword,
     );
   }
 
@@ -1038,6 +1243,14 @@ class _SignupConducteurPageState extends State<SignupConducteurPage> {
         focusedBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(8),
           borderSide: const BorderSide(color: Color(0xFFFDB60A), width: 1),
+        ),
+        errorBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(8),
+          borderSide: const BorderSide(color: Colors.red, width: 1),
+        ),
+        focusedErrorBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(8),
+          borderSide: const BorderSide(color: Colors.red, width: 1),
         ),
         contentPadding: const EdgeInsets.symmetric(
           horizontal: 16,
@@ -1140,7 +1353,7 @@ class _SignupConducteurPageState extends State<SignupConducteurPage> {
                       ),
                     ),
                     const SizedBox(height: 8),
-                    Text(
+                    const Text(
                       'Appuyez pour changer',
                       style: TextStyle(color: Color(0xFF616161), fontSize: 12),
                     ),

@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'package:amplify_auth_cognito/amplify_auth_cognito.dart';
 import 'package:flutter/material.dart';
 import 'package:amplify_flutter/amplify_flutter.dart';
 
@@ -40,31 +41,57 @@ class _ListeConducteursPageState extends State<ListeConducteursPage> {
         throw Exception('Vous devez être connecté');
       }
 
+      // Déboguer les groupes
+      final cognitoSession = session as CognitoAuthSession;
+      final userSub = cognitoSession.userSubResult.value;
+      final idToken = cognitoSession.userPoolTokensResult.value.idToken;
+
+      safePrint('User Sub: $userSub');
+
+      // ⭐ CORRECTION : Accéder aux claims via toJson()
+      final claims = idToken.claims.toJson();
+      safePrint('ID Token claims: $claims');
+
+      // Vérifier les groupes
+      final groups = claims['cognito:groups'];
+      safePrint('Groupes de l\'utilisateur: $groups');
+
+      if (groups == null || !(groups as List).contains('Admin')) {
+        throw Exception(
+          'Vous n\'êtes pas dans le groupe Admin. Reconnectez-vous.',
+        );
+      }
+
       const query = '''
-        query ListConducteurs {
-          listConducteurs {
-            items {
-              id
-              nom
-              email
-              telephone
-              typeSupport
-              typeVoiture
-              zones
-              heuresConduite
-              ciRectoUrl
-              ciVersoUrl
-              cgRectoUrl
-              cgVersoUrl
-              createdAt
-              updatedAt
-              owner
-            }
+      query ListConducteurs {
+        listConducteurs {
+          items {
+            id
+            nom
+            email
+            telephone
+            typeSupport
+            typeVoiture
+            zones
+            heuresConduite
+            ciRectoUrl
+            ciVersoUrl
+            cgRectoUrl
+            cgVersoUrl
+            createdAt
+            updatedAt
+            owner
           }
         }
-      ''';
+      }
+    ''';
 
-      final request = GraphQLRequest<String>(document: query, variables: {});
+      // Spécifier le mode d'authentification Cognito User Pools
+      final request = GraphQLRequest<String>(
+        document: query,
+        variables: {},
+        authorizationMode: APIAuthorizationType.userPools,
+      );
 
       final response = await Amplify.API.query(request: request).response;
 
@@ -94,84 +121,6 @@ class _ListeConducteursPageState extends State<ListeConducteursPage> {
       });
     }
   }
-
-  // Future<void> _deleteConducteur(String id, String nom) async
-  // {
-  //   final confirm = await showDialog<bool>(
-  //     context: context,
-  //     builder:
-  //         (context) => AlertDialog(
-  //           title: const Text('Confirmer la suppression'),
-  //           content: Text(
-  //             'Voulez-vous vraiment supprimer le conducteur "$nom" ?',
-  //           ),
-  //           actions: [
-  //             TextButton(
-  //               onPressed: () => Navigator.pop(context, false),
-  //               child: const Text('Annuler'),
-  //             ),
-  //             ElevatedButton
-  //             (
-  //               onPressed: () => Navigator.pop(context, true),
-  //               style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
-  //               child: const Text('Supprimer'),
-  //             ),
-  //           ],
-  //         ),
-  //   );
-
-  //   if (confirm != true) return;
-
-  //   try {
-  //     const mutation = '''
-  //       mutation DeleteConducteur(\$input: DeleteConducteurInput!) {
-  //         deleteConducteur(input: \$input) {
-  //           id
-  //         }
-  //       }
-  //     ''';
-
-  //     final variables = {
-  //       'input': {'id': id},
-  //     };
-
-  //     final request = GraphQLRequest<String>(
-  //       document: mutation,
-  //       variables: variables,
-  //     );
-
-  //     final response = await Amplify.API.mutate(request: request).response;
-
-  //     if (response.errors.isNotEmpty) {
-  //       final errorMsg = response.errors.map((e) => e.message).join(', ');
-  //       safePrint('Erreurs GraphQL: $errorMsg');
-  //       throw Exception('Erreur GraphQL: $errorMsg');
-  //     }
-
-  //     safePrint('Conducteur supprimé avec succès');
-
-  //     if (mounted) {
-  //       ScaffoldMessenger.of(context).showSnackBar(
-  //         SnackBar(
-  //           content: Text('Conducteur "$nom" supprimé avec succès'),
-  //           backgroundColor: Colors.green,
-  //         ),
-  //       );
-  //       _loadConducteurs();
-  //     }
-  //   } catch (e) {
-  //     safePrint('Erreur suppression: $e');
-  //     if (mounted) {
-  //       ScaffoldMessenger.of(context).showSnackBar(
-  //         SnackBar(
-  //           content: Text('Erreur: $e'),
-  //           backgroundColor: Colors.red,
-  //           duration: const Duration(seconds: 5),
-  //         ),
-  //       );
-  //     }
-  //   }
-  // }
 
   Future<void> _viewDocuments(Map<String, dynamic> conducteur) async {
     showDialog(

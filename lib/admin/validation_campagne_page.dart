@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:amplify_flutter/amplify_flutter.dart';
+import 'selection_conducteurs_dialog.dart'; // ← AJOUTEZ CETTE LIGNE
 
 class ValidationCampagnePage extends StatefulWidget {
   const ValidationCampagnePage({super.key});
@@ -12,7 +13,7 @@ class ValidationCampagnePage extends StatefulWidget {
 class _ValidationCampagnePageState extends State<ValidationCampagnePage> {
   List<dynamic> campagnes = [];
   bool _loading = false;
-  String _selectedStatut = "EN_ATTENTE"; // 🔸 filtre par défaut
+  String _selectedStatut = "EN_ATTENTE";
 
   @override
   void initState() {
@@ -34,6 +35,8 @@ class _ValidationCampagnePageState extends State<ValidationCampagnePage> {
               owner
               propositionChoisie
               statut
+              zonesCibles
+              conducteursAssignes
             }
           }
         }
@@ -47,21 +50,47 @@ class _ValidationCampagnePageState extends State<ValidationCampagnePage> {
         final data = jsonDecode(response.data!);
         final all = data['listCampagnes']['items'] ?? [];
 
-        // 🔸 On filtre selon l'onglet sélectionné
         setState(() {
           campagnes = all.where((c) => c['statut'] == _selectedStatut).toList();
         });
 
-        safePrint('✅ ${campagnes.length} campagnes chargées ($_selectedStatut)');
+        safePrint(
+          '✅ ${campagnes.length} campagnes chargées ($_selectedStatut)',
+        );
       } else {
         throw response.errors.first.message;
       }
     } catch (e) {
       safePrint('❌ Erreur fetch campagnes: $e');
-      ScaffoldMessenger.of(context)
-          .showSnackBar(SnackBar(content: Text('Erreur : $e')));
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Erreur : $e')));
     } finally {
       setState(() => _loading = false);
+    }
+  }
+
+  // ⭐ NOUVELLE FONCTION pour ouvrir le dialog de sélection
+  Future<void> _ouvrirSelectionConducteurs(
+    Map<String, dynamic> campagne,
+  ) async {
+    final result = await showDialog<bool>(
+      context: context,
+      builder:
+          (context) => SelectionConducteursDialog(
+            campagneId: campagne['id'],
+            campagneTitre: campagne['titre'],
+            zonesCibles: List<String>.from(campagne['zonesCibles'] ?? []),
+            conducteursDejaAssignes:
+                campagne['conducteursAssignes'] != null
+                    ? List<String>.from(campagne['conducteursAssignes'])
+                    : null,
+          ),
+    );
+
+    if (result == true) {
+      // Rafraîchir la liste après l'assignation
+      await _fetchCampagnes();
     }
   }
 
@@ -106,17 +135,29 @@ class _ValidationCampagnePageState extends State<ValidationCampagnePage> {
   }
 
   Future<void> _validerCampagne(String id, String owner) async {
-    await _updateStatutCampagne(id, owner, 'VALIDEE',
-        'Votre campagne a été validée par l\'administrateur. Merci de déposer votre argent avant 24h.');
+    await _updateStatutCampagne(
+      id,
+      owner,
+      'VALIDEE',
+      'Votre campagne a été validée par l\'administrateur. Merci de déposer votre argent avant 24h.',
+    );
   }
 
   Future<void> _rejeterCampagne(String id, String owner) async {
-    await _updateStatutCampagne(id, owner, 'REJETEE',
-        'Votre campagne a été rejetée par l\'administrateur. Veuillez nous contacter pour plus d\'informations.');
+    await _updateStatutCampagne(
+      id,
+      owner,
+      'REJETEE',
+      'Votre campagne a été rejetée par l\'administrateur. Veuillez nous contacter pour plus d\'informations.',
+    );
   }
 
   Future<void> _updateStatutCampagne(
-      String id, String owner, String newStatut, String message) async {
+    String id,
+    String owner,
+    String newStatut,
+    String message,
+  ) async {
     setState(() => _loading = true);
     try {
       final request = GraphQLRequest<String>(
@@ -143,17 +184,20 @@ class _ValidationCampagnePageState extends State<ValidationCampagnePage> {
         await _sendNotification(owner, 'Campagne $newStatut', message);
         await _fetchCampagnes();
 
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-          content: Text('Campagne $newStatut'),
-          backgroundColor: newStatut == 'VALIDEE' ? Colors.green : Colors.red,
-        ));
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Campagne $newStatut'),
+            backgroundColor: newStatut == 'VALIDEE' ? Colors.green : Colors.red,
+          ),
+        );
       } else {
         throw response.errors.first.message;
       }
     } catch (e) {
       safePrint('❌ Erreur mise à jour: $e');
-      ScaffoldMessenger.of(context)
-          .showSnackBar(SnackBar(content: Text('Erreur : $e')));
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Erreur : $e')));
     } finally {
       setState(() => _loading = false);
     }
@@ -168,7 +212,6 @@ class _ValidationCampagnePageState extends State<ValidationCampagnePage> {
       ),
       body: Column(
         children: [
-          // 🔸 Onglets de filtrage
           Container(
             color: Colors.grey[200],
             child: Row(
@@ -182,69 +225,99 @@ class _ValidationCampagnePageState extends State<ValidationCampagnePage> {
           ),
 
           Expanded(
-            child: _loading
-                ? const Center(
-                    child: CircularProgressIndicator(color: Color(0xFF0A426D)),
-                  )
-                : campagnes.isEmpty
+            child:
+                _loading
                     ? const Center(
-                        child: Text(
-                          'Aucune campagne à afficher',
-                          style: TextStyle(fontSize: 16, color: Colors.grey),
-                        ),
-                      )
+                      child: CircularProgressIndicator(
+                        color: Color(0xFF0A426D),
+                      ),
+                    )
+                    : campagnes.isEmpty
+                    ? const Center(
+                      child: Text(
+                        'Aucune campagne à afficher',
+                        style: TextStyle(fontSize: 16, color: Colors.grey),
+                      ),
+                    )
                     : ListView.builder(
-                        itemCount: campagnes.length,
-                        itemBuilder: (context, index) {
-                          final c = campagnes[index];
-                          return Card(
-                            margin: const EdgeInsets.symmetric(
-                                vertical: 8, horizontal: 12),
-                            elevation: 3,
-                            child: ListTile(
-                              title: Text(
-                                c['titre'],
-                                style: const TextStyle(
-                                    fontWeight: FontWeight.bold),
+                      itemCount: campagnes.length,
+                      itemBuilder: (context, index) {
+                        final c = campagnes[index];
+                        final nbConducteurs =
+                            (c['conducteursAssignes'] as List?)?.length ?? 0;
+
+                        return Card(
+                          margin: const EdgeInsets.symmetric(
+                            vertical: 8,
+                            horizontal: 12,
+                          ),
+                          elevation: 3,
+                          child: ListTile(
+                            // ⭐ Rendre toute la carte cliquable
+                            onTap: () => _ouvrirSelectionConducteurs(c),
+                            title: Text(
+                              c['titre'],
+                              style: const TextStyle(
+                                fontWeight: FontWeight.bold,
                               ),
-                              subtitle: Text(
-                                'Budget : ${c['budget']} FCFA\n'
-                                'Proposition : ${c['propositionChoisie'] ?? '-'}\n'
-                                'Statut: ${c['statut']}',
-                              ),
-                              isThreeLine: true,
-                              trailing: _selectedStatut == "EN_ATTENTE"
-                                  ? Row(
+                            ),
+                            subtitle: Text(
+                              'Budget : ${c['budget']} FCFA\n'
+                              'Proposition : ${c['propositionChoisie'] ?? '-'}\n'
+                              'Statut: ${c['statut']}\n'
+                              'Conducteurs assignés: $nbConducteurs',
+                            ),
+                            isThreeLine: true,
+                            trailing:
+                                _selectedStatut == "EN_ATTENTE"
+                                    ? Row(
                                       mainAxisSize: MainAxisSize.min,
                                       children: [
                                         IconButton(
-                                          icon: const Icon(Icons.check,
-                                              color: Colors.green),
-                                          onPressed: () => _validerCampagne(
-                                              c['id'], c['owner']),
+                                          icon: const Icon(
+                                            Icons.check,
+                                            color: Colors.green,
+                                          ),
+                                          onPressed:
+                                              () => _validerCampagne(
+                                                c['id'],
+                                                c['owner'],
+                                              ),
                                           tooltip: 'Valider',
                                         ),
                                         IconButton(
-                                          icon: const Icon(Icons.close,
-                                              color: Colors.red),
-                                          onPressed: () => _rejeterCampagne(
-                                              c['id'], c['owner']),
+                                          icon: const Icon(
+                                            Icons.close,
+                                            color: Colors.red,
+                                          ),
+                                          onPressed:
+                                              () => _rejeterCampagne(
+                                                c['id'],
+                                                c['owner'],
+                                              ),
                                           tooltip: 'Rejeter',
                                         ),
                                       ],
                                     )
-                                  : null,
-                            ),
-                          );
-                        },
-                      ),
+                                    : IconButton(
+                                      icon: const Icon(
+                                        Icons.people,
+                                        color: Color(0xFF0A426D),
+                                      ),
+                                      onPressed:
+                                          () => _ouvrirSelectionConducteurs(c),
+                                      tooltip: 'Gérer les conducteurs',
+                                    ),
+                          ),
+                        );
+                      },
+                    ),
           ),
         ],
       ),
     );
   }
 
-  // 🔸 Bouton de filtre stylé
   Widget _buildFilterButton(String statut, Color color) {
     final bool isActive = _selectedStatut == statut;
     return TextButton(

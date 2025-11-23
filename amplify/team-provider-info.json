@@ -20,6 +20,12 @@
       },
       "api": {
         "autopubmobilapp": {}
+      },
+      "function": {
+        "graphQlLambdaAuthorizer2eb15d9a": {
+          "deploymentBucketName": "amplify-autopubmobilapp-dev-1ce52-deployment",
+          "s3Key": "amplify-builds/graphQlLambdaAuthorizer2eb15d9a-584c434e477857583661-build.zip"
+        }
       }
     }
   }

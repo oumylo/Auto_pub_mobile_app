@@ -1,11 +1,12 @@
 type Conducteur @model
   @auth(rules: [
+    { allow: owner, operations: [create, read, update, delete] }, 
     { allow: groups, groups: ["Admin"], operations: [create, read, update, delete] },
-    { allow: owner, operations: [read, update] },
-    { allow: public, operations: [read, create] }
+    { allow: public, operations: [read] },  # <-- lecture publique pour tous
+    { allow: public, provider: iam, operations: [create] }  
   ]) {
   id: ID!
-  owner: String
+  owner: String!
   nom: String!
   email: AWSEmail!
   telephone: String!
@@ -22,13 +23,14 @@ type Conducteur @model
   updatedAt: AWSDateTime
 }
 
+
 type Annonceur @model
   @auth(rules: [
     { allow: owner, operations: [create, read, update, delete] },  
-    { allow: public, operations: [create] }              
+    { allow: public, operations: [create, read] }              
   ]) {
   id: ID!
-  owner: String
+  owner: String!    
   nom: String!
   email: AWSEmail!
   telephone: String!
@@ -42,7 +44,8 @@ type Annonceur @model
 type Campagne @model
   @auth(rules: [
     { allow: owner, ownerField: "owner", operations: [create, read, update, delete] },
-    { allow: groups, groups: ["Admin"], operations: [read, update, delete] }
+    { allow: groups, groups: ["Admin"], operations: [read, update, delete] },
+    { allow: private, operations: [read] }  # ✅ Permet à tous les utilisateurs authentifiés de lire
   ]) {
   id: ID!
   titre: String!
@@ -53,9 +56,11 @@ type Campagne @model
   propositionChoisie: String
   statut: String @default(value: "EN_ATTENTE")
   owner: String!
+  conducteursAssignes: [ID!]
   createdAt: AWSDateTime
   updatedAt: AWSDateTime
 }
+
 
 type Notification @model
   @auth(rules: [
